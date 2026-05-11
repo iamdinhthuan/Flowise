@@ -1589,6 +1589,9 @@ export const getEncryptionKey = async (): Promise<string> => {
     }
 }
 
+const CREDENTIAL_DECRYPTION_ERROR_MESSAGE =
+    'Credential data could not be decrypted. Restore the original Flowise encryption key or recreate the credential.'
+
 /**
  * Encrypt credential data
  * @param {ICredentialDataDecrypted} plainDataObj
@@ -1627,21 +1630,19 @@ export const decryptCredentialData = async (
                 }
             } else {
                 const encryptKey = await getEncryptionKey()
-                const decryptedData = AES.decrypt(encryptedData, encryptKey)
-                decryptedDataStr = decryptedData.toString(enc.Utf8)
+                decryptedDataStr = decryptCredentialString(encryptedData, encryptKey)
             }
         } catch (error) {
             console.error(error)
-            throw new Error('Failed to decrypt credential data.')
+            throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
         }
     } else {
         // Fallback to existing code
         const encryptKey = await getEncryptionKey()
-        const decryptedData = AES.decrypt(encryptedData, encryptKey)
-        decryptedDataStr = decryptedData.toString(enc.Utf8)
+        decryptedDataStr = decryptCredentialString(encryptedData, encryptKey)
     }
 
-    if (!decryptedDataStr) return {}
+    if (!decryptedDataStr) throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
     try {
         if (componentCredentialName && componentCredentials) {
             const plainDataObj = JSON.parse(decryptedDataStr)
@@ -1650,7 +1651,18 @@ export const decryptCredentialData = async (
         return JSON.parse(decryptedDataStr)
     } catch (e) {
         console.error(e)
-        return {}
+        throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
+    }
+}
+
+const decryptCredentialString = (encryptedData: string, encryptKey: string): string => {
+    try {
+        const decryptedData = AES.decrypt(encryptedData, encryptKey)
+        const decryptedDataStr = decryptedData.toString(enc.Utf8)
+        if (!decryptedDataStr) throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
+        return decryptedDataStr
+    } catch (error) {
+        throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
     }
 }
 

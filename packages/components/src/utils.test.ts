@@ -1,4 +1,39 @@
-import { removeInvalidImageMarkdown, convertRequireToImport, COMMONJS_REQUIRE_REGEX, IMPORT_EXTRACTION_REGEX } from './utils'
+import { AES } from 'crypto-js'
+import {
+    removeInvalidImageMarkdown,
+    convertRequireToImport,
+    COMMONJS_REQUIRE_REGEX,
+    IMPORT_EXTRACTION_REGEX,
+    decryptCredentialData
+} from './utils'
+
+describe('decryptCredentialData', () => {
+    const originalSecretKeyOverwrite = process.env.FLOWISE_SECRETKEY_OVERWRITE
+
+    afterEach(() => {
+        if (originalSecretKeyOverwrite === undefined) {
+            delete process.env.FLOWISE_SECRETKEY_OVERWRITE
+        } else {
+            process.env.FLOWISE_SECRETKEY_OVERWRITE = originalSecretKeyOverwrite
+        }
+    })
+
+    it('decrypts credential data with the configured encryption key', async () => {
+        process.env.FLOWISE_SECRETKEY_OVERWRITE = 'correct-test-key'
+        const encryptedData = AES.encrypt(JSON.stringify({ openAIApiKey: 'sk-test' }), 'correct-test-key').toString()
+
+        await expect(decryptCredentialData(encryptedData)).resolves.toEqual({ openAIApiKey: 'sk-test' })
+    })
+
+    it('throws an actionable credential error when the encryption key does not match', async () => {
+        const encryptedData = AES.encrypt(JSON.stringify({ openAIApiKey: 'sk-test' }), 'old-test-key').toString()
+        process.env.FLOWISE_SECRETKEY_OVERWRITE = 'new-test-key'
+
+        await expect(decryptCredentialData(encryptedData)).rejects.toThrow(
+            'Credential data could not be decrypted. Restore the original Flowise encryption key or recreate the credential.'
+        )
+    })
+})
 
 describe('removeInvalidImageMarkdown', () => {
     describe('strips non-http/https image markdown', () => {

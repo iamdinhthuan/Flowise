@@ -30,6 +30,8 @@ export const FLOWISE_CHATID = 'flowise_chatId'
 
 let secretsManagerClient: SecretsManagerClient | null = null
 const USE_AWS_SECRETS_MANAGER = process.env.SECRETKEY_STORAGE_TYPE === 'aws'
+const CREDENTIAL_DECRYPTION_ERROR_MESSAGE =
+    'Credential data could not be decrypted. Restore the original Flowise encryption key or recreate the credential.'
 if (USE_AWS_SECRETS_MANAGER) {
     const region = process.env.SECRETKEY_AWS_REGION || 'us-east-1' // Default region if not provided
     const accessKeyId = process.env.SECRETKEY_AWS_ACCESS_KEY
@@ -628,26 +630,35 @@ export const decryptCredentialData = async (encryptedData: string): Promise<ICom
                 }
             } else {
                 const encryptKey = await getEncryptionKey()
-                const decryptedData = AES.decrypt(encryptedData, encryptKey)
-                decryptedDataStr = decryptedData.toString(enc.Utf8)
+                decryptedDataStr = decryptCredentialString(encryptedData, encryptKey)
             }
         } catch (error) {
             console.error(error)
-            throw new Error('Failed to decrypt credential data.')
+            throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
         }
     } else {
         // Fallback to existing code
         const encryptKey = await getEncryptionKey()
-        const decryptedData = AES.decrypt(encryptedData, encryptKey)
-        decryptedDataStr = decryptedData.toString(enc.Utf8)
+        decryptedDataStr = decryptCredentialString(encryptedData, encryptKey)
     }
 
-    if (!decryptedDataStr) return {}
+    if (!decryptedDataStr) throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
     try {
         return JSON.parse(decryptedDataStr)
     } catch (e) {
         console.error(e)
-        throw new Error('Credentials could not be decrypted.')
+        throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
+    }
+}
+
+const decryptCredentialString = (encryptedData: string, encryptKey: string): string => {
+    try {
+        const decryptedData = AES.decrypt(encryptedData, encryptKey)
+        const decryptedDataStr = decryptedData.toString(enc.Utf8)
+        if (!decryptedDataStr) throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
+        return decryptedDataStr
+    } catch (error) {
+        throw new Error(CREDENTIAL_DECRYPTION_ERROR_MESSAGE)
     }
 }
 
@@ -677,7 +688,8 @@ export const getCredentialData = async (selectedCredentialId: string, options: I
 
         return decryptedCredentialData
     } catch (e) {
-        throw new Error(e)
+        if (e instanceof Error) throw e
+        throw new Error(String(e))
     }
 }
 
