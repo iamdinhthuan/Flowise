@@ -86,6 +86,19 @@ export class App {
             await this.AppDataSource.initialize()
             logger.info('📦 [server]: Data Source initialized successfully')
 
+            // SQLite performance tuning for lightweight deployments
+            if (!process.env.DATABASE_TYPE || process.env.DATABASE_TYPE === 'sqlite') {
+                try {
+                    await this.AppDataSource.query('PRAGMA journal_mode = WAL')
+                    await this.AppDataSource.query('PRAGMA synchronous = NORMAL')
+                    await this.AppDataSource.query('PRAGMA cache_size = -2000')
+                    await this.AppDataSource.query('PRAGMA temp_store = MEMORY')
+                    logger.info('⚡ [server]: SQLite PRAGMA optimizations applied (WAL, NORMAL sync)')
+                } catch (e) {
+                    logger.warn('⚠️ [server]: Failed to apply SQLite PRAGMA optimizations')
+                }
+            }
+
             // Run Migrations Scripts
             await this.AppDataSource.runMigrations({ transaction: 'each' })
             logger.info('🔄 [server]: Database migrations completed successfully')
@@ -111,22 +124,29 @@ export class App {
             await initAuthSecrets()
             logger.info('🔐 [server]: Auth initialized successfully')
 
-            // Initialize Rate Limit
+            // Initialize Rate Limit (lazy — don't preload all chatflows)
             this.rateLimiterManager = RateLimiterManager.getInstance()
-            await this.rateLimiterManager.initializeRateLimiters(await getDataSource().getRepository(ChatFlow).find())
-            logger.info('🚦 [server]: Rate limiters initialized successfully')
+            logger.info('🚦 [server]: Rate limiter manager initialized (lazy mode)')
 
             // Initialize cache pool
             this.cachePool = new CachePool()
             logger.info('💾 [server]: Cache pool initialized successfully')
 
-            // Initialize usage cache manager
-            this.usageCacheManager = await UsageCacheManager.getInstance()
-            logger.info('📊 [server]: Usage cache manager initialized successfully')
+            // Initialize usage cache manager (skip if LITE_MODE)
+            if (process.env.LITE_MODE !== 'true') {
+                this.usageCacheManager = await UsageCacheManager.getInstance()
+                logger.info('📊 [server]: Usage cache manager initialized successfully')
+            }
 
-            // Initialize telemetry
-            this.telemetry = new Telemetry()
-            logger.info('📈 [server]: Telemetry initialized successfully')
+            // Initialize telemetry (disabled in lite mode — no PostHog calls)
+            if (process.env.LITE_MODE !== 'true') {
+                this.telemetry = new Telemetry()
+                logger.info('📈 [server]: Telemetry initialized successfully')
+            } else {
+                // Create a no-op telemetry so code referencing it doesn't break
+                this.telemetry = { sendTelemetry: async () => {}, flush: async () => {} } as any
+                logger.info('📈 [server]: Telemetry disabled (LITE_MODE)')
+            }
 
             // Initialize SSE Streamer
             this.sseStreamer = new SSEStreamer()
@@ -159,9 +179,13 @@ export class App {
             await initWebhookListenerRegistry(this.sseStreamer, this.redisSubscriber)
             logger.info('📡 [server]: Webhook listener registry initialized successfully')
 
-            // Init ScheduleBeat (works in both queue and non-queue mode)
-            await ScheduleBeat.getInstance().init()
-            logger.info('⏰ [server]: ScheduleBeat initialized successfully')
+            // Init ScheduleBeat only if enabled
+            if (process.env.ENABLE_SCHEDULE === 'true') {
+                await ScheduleBeat.getInstance().init()
+                logger.info('⏰ [server]: ScheduleBeat initialized successfully')
+            } else {
+                logger.info('⏰ [server]: ScheduleBeat skipped (set ENABLE_SCHEDULE=true to enable)')
+            }
 
             logger.info('🎉 [server]: All initialization steps completed successfully!')
         } catch (error) {
@@ -237,7 +261,86 @@ export class App {
                     if (isWhitelisted) {
                         next()
                     } else if (req.headers['x-request-from'] === 'internal') {
-                        verifyToken(req, res, next)
+                        // Open Source: skip auth entirely, inject default user
+                        if (this.identityManager.isOpenSource()) {
+                            // Use cached user if available (avoid DB query on every request)
+                            if ((this as any)._cachedOpenSourceUser) {
+                                // @ts-ignore
+                                req.user = (this as any)._cachedOpenSourceUser
+                                next()
+                                return
+                            }
+                            try {
+                                let ws = await this.AppDataSource.getRepository(Workspace).findOne({ where: {} })
+                                // If no workspace exists, bootstrap org + workspace directly (no account needed)
+                                if (!ws) {
+                                    const dummyId = '00000000-0000-0000-0000-000000000000'
+                                    // Disable FK checks for bootstrap (dummy createdBy/updatedBy)
+                                    const isSQLite = !process.env.DATABASE_TYPE || process.env.DATABASE_TYPE === 'sqlite'
+                                    try {
+                                        if (isSQLite) {
+                                            await this.AppDataSource.query('PRAGMA foreign_keys = OFF')
+                                        } else {
+                                            await this.AppDataSource.query('SET session_replication_role = replica')
+                                        }
+                                    } catch (_) {}
+                                    const orgRepo = this.AppDataSource.getRepository(Organization)
+                                    let org = await orgRepo.findOne({ where: {} })
+                                    if (!org) {
+                                        org = orgRepo.create({
+                                            name: 'Default Organization',
+                                            createdBy: dummyId,
+                                            updatedBy: dummyId
+                                        })
+                                        await orgRepo.save(org)
+                                        logger.info(`🏢 [server]: Default Organization created: ${org.id}`)
+                                    }
+                                    const wsRepo = this.AppDataSource.getRepository(Workspace)
+                                    ws = wsRepo.create({
+                                        name: 'Default Workspace',
+                                        organizationId: org.id,
+                                        createdBy: dummyId,
+                                        updatedBy: dummyId
+                                    })
+                                    await wsRepo.save(ws)
+                                    logger.info(`📁 [server]: Default Workspace created: ${ws.id}`)
+                                    // Re-enable FK checks
+                                    try {
+                                        if (isSQLite) {
+                                            await this.AppDataSource.query('PRAGMA foreign_keys = ON')
+                                        } else {
+                                            await this.AppDataSource.query('SET session_replication_role = DEFAULT')
+                                        }
+                                    } catch (_) {}
+                                }
+                                if (ws) {
+                                    const org = await this.AppDataSource.getRepository(Organization).findOne({
+                                        where: { id: ws.organizationId }
+                                    })
+                                    const cachedUser = {
+                                        id: '',
+                                        permissions: [],
+                                        features: {},
+                                        activeOrganizationId: org?.id || '',
+                                        activeOrganizationSubscriptionId: '',
+                                        activeOrganizationCustomerId: '',
+                                        activeOrganizationProductId: '',
+                                        isOrganizationAdmin: true,
+                                        activeWorkspaceId: ws.id,
+                                        activeWorkspace: ws.name
+                                    }
+                                    // Cache for subsequent requests
+                                    ;(this as any)._cachedOpenSourceUser = cachedUser
+                                    // @ts-ignore
+                                    req.user = cachedUser
+                                }
+                            } catch (e) {
+                                logger.error(`❌ [server]: Open Source bootstrap error: ${e}`)
+                            }
+                            next()
+                        } else {
+                            verifyToken(req, res, next)
+                        }
                     } else {
                         const isAPIKeyBlacklistedURLS = API_KEY_BLACKLIST_URLS.some((url) => req.path.startsWith(url))
                         if (isAPIKeyBlacklistedURLS) {

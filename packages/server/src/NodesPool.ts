@@ -35,11 +35,33 @@ export class NodesPool {
      */
     async loadNodesFromDir(dir: string): Promise<IComponentNodes> {
         const disabled_nodes = process.env.DISABLED_NODES ? process.env.DISABLED_NODES.split(',') : []
+
+        // Skip entire node categories for lightweight deployments
+        // Default chatflow-only categories to skip in LITE_MODE
+        const defaultDisabledCategories = 'agents,chains,memory,prompts,outputparsers,multiagents,sequentialagents,graphs,llms,engine,responsesynthesizer,speechtotext'
+        const disabled_categories = process.env.DISABLED_NODE_CATEGORIES
+            ? process.env.DISABLED_NODE_CATEGORIES.split(',')
+            : process.env.LITE_MODE === 'true'
+              ? defaultDisabledCategories.split(',')
+              : []
+
         const nodes: IComponentNodes = {}
         const nodeFiles = await this.getFiles(dir)
         await Promise.all(
             nodeFiles.map(async (file) => {
                 if (file.endsWith('.js')) {
+                    // Skip files in disabled categories (check directory name)
+                    if (disabled_categories.length > 0) {
+                        const fileParts = file.replace(/\\/g, '/').split('/')
+                        const nodesIdx = fileParts.lastIndexOf('nodes')
+                        if (nodesIdx !== -1 && nodesIdx + 1 < fileParts.length) {
+                            const categoryDir = fileParts[nodesIdx + 1]
+                            if (disabled_categories.includes(categoryDir)) {
+                                return
+                            }
+                        }
+                    }
+
                     try {
                         const nodeModule = await require(file)
 
@@ -87,6 +109,10 @@ export class NodesPool {
                 }
             })
         )
+        if (disabled_categories.length > 0) {
+            logger.info(`⚡ [server]: Skipped node categories: ${disabled_categories.join(', ')}`)
+        }
+        logger.info(`🔧 [server]: Loaded ${Object.keys(nodes).length} nodes`)
         return nodes
     }
 

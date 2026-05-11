@@ -116,7 +116,7 @@ class ConditionAgent_Agentflow implements INode {
                     }
                 ],
                 optional: true,
-                default: 'allMessages',
+                default: 'windowSize',
                 show: {
                     conditionAgentEnableMemory: true
                 }
@@ -125,7 +125,7 @@ class ConditionAgent_Agentflow implements INode {
                 label: 'Window Size',
                 name: 'conditionAgentMemoryWindowSize',
                 type: 'number',
-                default: '20',
+                default: '10',
                 description: 'Uses a fixed window size to surface the last N messages',
                 show: {
                     conditionAgentMemoryType: 'windowSize'

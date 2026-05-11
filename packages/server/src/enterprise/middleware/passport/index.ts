@@ -198,8 +198,6 @@ export const initializeJwtCookieMiddleware = async (app: express.Application, id
     )
 
     app.post('/api/v1/auth/resolve', async (req, res) => {
-        // check for the organization, if empty redirect to the organization setup page for OpenSource and Enterprise Versions
-        // for Cloud (Horizontal) version, redirect to the signin page
         const expressApp = getRunningExpressApp()
         const platform = expressApp.identityManager.getPlatformType()
         if (platform === Platform.CLOUD) {
@@ -218,7 +216,8 @@ export const initializeJwtCookieMiddleware = async (app: express.Application, id
                     }
                     return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/organization-setup' })
                 default:
-                    return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/organization-setup' })
+                    // Open Source: no account needed, middleware handles workspace bootstrap
+                    return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/' })
             }
         }
         switch (platform) {
@@ -228,7 +227,7 @@ export const initializeJwtCookieMiddleware = async (app: express.Application, id
                 }
                 return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/signin' })
             default:
-                return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/signin' })
+                return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/' })
         }
     })
 

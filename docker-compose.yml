@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowise
+      POSTGRES_PASSWORD: flowise123
+      POSTGRES_DB: flowise
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowise"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  flowise:
+    build: .
+    image: flowise-lite
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - LITE_MODE=true
+      - DATABASE_TYPE=postgres
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=flowise
+      - DATABASE_PASSWORD=flowise123
+      - DATABASE_NAME=flowise
+    ports:
+      - "3000:3000"
+    volumes:
+      - flowise_data:/root/.flowise
+
+volumes:
+  postgres_data:
+  flowise_data:

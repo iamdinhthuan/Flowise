@@ -380,7 +380,7 @@ class Agent_Agentflow implements INode {
                     }
                 ],
                 optional: true,
-                default: 'allMessages',
+                default: 'windowSize',
                 show: {
                     agentEnableMemory: true
                 }
@@ -389,7 +389,7 @@ class Agent_Agentflow implements INode {
                 label: 'Window Size',
                 name: 'agentMemoryWindowSize',
                 type: 'number',
-                default: '20',
+                default: '10',
                 description: 'Uses a fixed window size to surface the last N messages',
                 show: {
                     agentMemoryType: 'windowSize'
@@ -403,6 +403,19 @@ class Agent_Agentflow implements INode {
                 description: 'Summarize conversations once token limit is reached. Default to 2000',
                 show: {
                     agentMemoryType: 'conversationSummaryBuffer'
+                }
+            },
+            {
+                label: 'Summarizer Prompt',
+                name: 'agentSummarizerPrompt',
+                type: 'string',
+                rows: 6,
+                description: 'Prompt dùng để tóm tắt cuộc hội thoại khi dùng memory Conversation Summary hoặc Summary Buffer. Dùng {conversation} làm biến thay thế.',
+                default: DEFAULT_SUMMARIZER_TEMPLATE,
+                optional: true,
+                acceptVariable: true,
+                show: {
+                    agentMemoryType: ['conversationSummary', 'conversationSummaryBuffer']
                 }
             },
             {
@@ -1762,7 +1775,7 @@ class Agent_Agentflow implements INode {
                     [
                         {
                             role: 'user',
-                            content: DEFAULT_SUMMARIZER_TEMPLATE.replace(
+                            content: (nodeData.inputs?.agentSummarizerPrompt as string || DEFAULT_SUMMARIZER_TEMPLATE).replace(
                                 '{conversation}',
                                 pastMessages.map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')
                             )
@@ -1835,7 +1848,7 @@ class Agent_Agentflow implements INode {
                 [
                     {
                         role: 'user',
-                        content: DEFAULT_SUMMARIZER_TEMPLATE.replace('{conversation}', messagesToSummarizeString)
+                        content: (nodeData.inputs?.agentSummarizerPrompt as string || DEFAULT_SUMMARIZER_TEMPLATE).replace('{conversation}', messagesToSummarizeString)
                     }
                 ],
                 { signal: abortController?.signal }

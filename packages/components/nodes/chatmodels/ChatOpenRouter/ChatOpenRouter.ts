@@ -111,6 +111,15 @@ class ChatOpenRouter_ChatModels implements INode {
                 additionalParams: true
             },
             {
+                label: 'Enable Prompt Caching',
+                name: 'enablePromptCaching',
+                type: 'boolean',
+                default: true,
+                optional: true,
+                description: 'Cache system prompts for Anthropic models via OpenRouter. Reduces input token costs by ~90%. Only applies to anthropic/claude models.',
+                additionalParams: true
+            },
+            {
                 label: 'Base Path',
                 name: 'basepath',
                 type: 'string',
@@ -143,6 +152,7 @@ class ChatOpenRouter_ChatModels implements INode {
         const baseOptions = nodeData.inputs?.baseOptions
         const cache = nodeData.inputs?.cache as BaseCache
         const allowImageUploads = nodeData.inputs?.allowImageUploads as boolean
+        const enablePromptCaching = nodeData.inputs?.enablePromptCaching as boolean
 
         const credentialData = await getCredentialData(nodeData.credential ?? '', options)
         const openRouterApiKey = getCredentialParam('openRouterApiKey', credentialData, nodeData)
@@ -185,7 +195,7 @@ class ChatOpenRouter_ChatModels implements INode {
             }
         }
 
-        const model = new ChatOpenRouter(nodeData.id, obj)
+        const model = new ChatOpenRouter(nodeData.id, { ...obj, enablePromptCaching: enablePromptCaching ?? true })
         model.setMultiModalOption(multiModalOption)
         return model
     }

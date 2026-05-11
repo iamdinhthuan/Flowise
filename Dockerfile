@@ -1,12 +1,14 @@
-# Build local monorepo image
-# docker build --no-cache -t  flowise .
+# Build local monorepo image (lightweight)
+# docker build --no-cache -t flowise-lite .
 
 # Run image
-# docker run -d -p 3000:3000 flowise
+# docker run -d -p 3000:3000 -e LITE_MODE=true flowise-lite
 
-FROM node:20-alpine
+# ============================================
+# Stage 1: Build
+# ============================================
+FROM node:20-alpine AS builder
 
-# Install system dependencies and build tools
 RUN apk update && \
     apk add --no-cache \
         libc6-compat \
@@ -14,30 +16,35 @@ RUN apk update && \
         make \
         g++ \
         build-base \
-        cairo-dev \
-        pango-dev \
-        chromium \
         curl && \
     npm install -g pnpm
 
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-
-ENV NODE_OPTIONS=--max-old-space-size=8192
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 WORKDIR /usr/src/flowise
 
-# Copy app source
 COPY . .
 
-# Install dependencies and build (excluding sdk packages not needed for Docker)
 RUN pnpm install && \
     pnpm build:docker
 
-# Give the node user ownership of the application files
-RUN chown -R node:node .
+# ============================================
+# Stage 2: Runtime (lightweight)
+# ============================================
+FROM node:20-alpine
 
-# Switch to non-root user (node user already exists in node:20-alpine)
+RUN apk add --no-cache libc6-compat curl && \
+    npm install -g pnpm
+
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV NODE_OPTIONS=--max-old-space-size=2048
+
+WORKDIR /usr/src/flowise
+
+# Copy built artifacts (node user can read these fine)
+COPY --from=builder --chown=node:node /usr/src/flowise .
+
 USER node
 
 EXPOSE 3000

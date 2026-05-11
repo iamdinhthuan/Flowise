@@ -41,16 +41,15 @@ export const RequireAuth = ({ permission, display, children }) => {
         return null
     }
 
-    // Step 1: Authentication Check
+    // Step 1: Open Source - skip auth entirely, just render children
+    if (isOpenSource) {
+        return !display ? children : <Navigate to='/unauthorized' replace />
+    }
+
+    // Step 2: Authentication Check (Cloud & Enterprise only)
     // Redirect to login if user is not authenticated
     if (!currentUser) {
         return <Navigate to='/login' replace state={{ path: location.pathname }} />
-    }
-
-    // Step 2: Deployment Type Specific Logic
-    // Open Source: Only show features without display property
-    if (isOpenSource) {
-        return !display ? children : <Navigate to='/unauthorized' replace />
     }
 
     // Cloud & Enterprise: Check both permissions and feature flags

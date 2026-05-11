@@ -1,6 +1,6 @@
 import express from 'express'
 import apikeyRouter from './apikey'
-import assistantsRouter from './assistants'
+// import assistantsRouter from './assistants'
 import attachmentsRouter from './attachments'
 import chatMessageRouter from './chat-messages'
 import chatflowsRouter from './chatflows'
@@ -24,7 +24,7 @@ import internalPredictionRouter from './internal-predictions'
 import leadsRouter from './leads'
 import loadPromptRouter from './load-prompts'
 import logsRouter from './log'
-import marketplacesRouter from './marketplaces'
+// import marketplacesRouter from './marketplaces'
 import customMcpServersRouter from './custom-mcp-servers'
 import nodeConfigRouter from './node-configs'
 import nodeCustomFunctionRouter from './node-custom-functions'
@@ -32,15 +32,15 @@ import nodeIconRouter from './node-icons'
 import nodeLoadMethodRouter from './node-load-methods'
 import nodesRouter from './nodes'
 import oauth2Router from './oauth2'
-import openaiAssistantsRouter from './openai-assistants'
-import openaiAssistantsFileRouter from './openai-assistants-files'
-import openaiAssistantsVectorStoreRouter from './openai-assistants-vector-store'
+// import openaiAssistantsRouter from './openai-assistants'
+// import openaiAssistantsFileRouter from './openai-assistants-files'
+// import openaiAssistantsVectorStoreRouter from './openai-assistants-vector-store'
 import openaiRealtimeRouter from './openai-realtime'
 import pingRouter from './ping'
 import predictionRouter from './predictions'
 import promptListsRouter from './prompts-lists'
 import publicChatbotRouter from './public-chatbots'
-import publicChatflowsRouter from './public-chatflows'
+// import publicChatflowsRouter from './public-chatflows'
 import publicExecutionsRouter from './public-executions'
 import settingsRouter from './settings'
 import statsRouter from './stats'
@@ -77,7 +77,7 @@ const router = express.Router()
 
 router.use('/ping', pingRouter)
 router.use('/apikey', apikeyRouter)
-router.use('/assistants', assistantsRouter)
+// router.use('/assistants', assistantsRouter)
 router.use('/attachments', attachmentsRouter)
 router.use('/chatflows', chatflowsRouter)
 router.use('/chatflows-streaming', chatflowsStreamingRouter)
@@ -99,21 +99,21 @@ router.use('/internal-prediction', internalPredictionRouter)
 router.use('/get-upload-file', getUploadFileRouter)
 router.use('/leads', leadsRouter)
 router.use('/load-prompt', loadPromptRouter)
-router.use('/marketplaces', marketplacesRouter)
+// router.use('/marketplaces', marketplacesRouter)
 router.use('/node-config', nodeConfigRouter)
 router.use('/node-custom-function', nodeCustomFunctionRouter)
 router.use('/node-icon', nodeIconRouter)
 router.use('/node-load-method', nodeLoadMethodRouter)
 router.use('/nodes', nodesRouter)
 router.use('/oauth2-credential', oauth2Router)
-router.use('/openai-assistants', openaiAssistantsRouter)
-router.use('/openai-assistants-file', openaiAssistantsFileRouter)
-router.use('/openai-assistants-vector-store', openaiAssistantsVectorStoreRouter)
+// router.use('/openai-assistants', openaiAssistantsRouter)
+// router.use('/openai-assistants-file', openaiAssistantsFileRouter)
+// router.use('/openai-assistants-vector-store', openaiAssistantsVectorStoreRouter)
 router.use('/openai-realtime', openaiRealtimeRouter)
 router.use('/prediction', predictionRouter)
 router.use('/prompts-list', promptListsRouter)
 router.use('/public-chatbotConfig', publicChatbotRouter)
-router.use('/public-chatflows', publicChatflowsRouter)
+// router.use('/public-chatflows', publicChatflowsRouter)
 router.use('/public-executions', publicExecutionsRouter)
 router.use('/stats', statsRouter)
 router.use('/tools', toolsRouter)

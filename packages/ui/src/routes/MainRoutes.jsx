@@ -7,14 +7,14 @@ import Loadable from '@/ui-component/loading/Loadable'
 import { RequireAuth } from '@/routes/RequireAuth'
 import { DefaultRedirect } from '@/routes/DefaultRedirect'
 
-// chatflows routing
-const Chatflows = Loadable(lazy(() => import('@/views/chatflows')))
+// chatflows routing (disabled)
+// const Chatflows = Loadable(lazy(() => import('@/views/chatflows')))
 
 // agents routing
 const Agentflows = Loadable(lazy(() => import('@/views/agentflows')))
 
-// marketplaces routing
-const Marketplaces = Loadable(lazy(() => import('@/views/marketplaces')))
+// marketplaces routing (disabled)
+// const Marketplaces = Loadable(lazy(() => import('@/views/marketplaces')))
 
 // apikey routing
 const APIKey = Loadable(lazy(() => import('@/views/apikey')))
@@ -22,11 +22,11 @@ const APIKey = Loadable(lazy(() => import('@/views/apikey')))
 // tools routing
 const Tools = Loadable(lazy(() => import('@/views/tools')))
 
-// assistants routing
-const Assistants = Loadable(lazy(() => import('@/views/assistants')))
-const OpenAIAssistantLayout = Loadable(lazy(() => import('@/views/assistants/openai/OpenAIAssistantLayout')))
-const CustomAssistantLayout = Loadable(lazy(() => import('@/views/assistants/custom/CustomAssistantLayout')))
-const CustomAssistantConfigurePreview = Loadable(lazy(() => import('@/views/assistants/custom/CustomAssistantConfigurePreview')))
+// assistants routing (disabled)
+// const Assistants = Loadable(lazy(() => import('@/views/assistants')))
+// const OpenAIAssistantLayout = Loadable(lazy(() => import('@/views/assistants/openai/OpenAIAssistantLayout')))
+// const CustomAssistantLayout = Loadable(lazy(() => import('@/views/assistants/custom/CustomAssistantLayout')))
+// const CustomAssistantConfigurePreview = Loadable(lazy(() => import('@/views/assistants/custom/CustomAssistantConfigurePreview')))
 
 // credentials routing
 const Credentials = Loadable(lazy(() => import('@/views/credentials')))
@@ -80,11 +80,12 @@ const MainRoutes = {
             path: '/',
             element: <DefaultRedirect />
         },
+        // /chatflows redirects to Agentflows (chatflows has been removed)
         {
             path: '/chatflows',
             element: (
-                <RequireAuth permission={'chatflows:view'}>
-                    <Chatflows />
+                <RequireAuth permission={'agentflows:view'}>
+                    <Agentflows />
                 </RequireAuth>
             )
         },
@@ -104,14 +105,14 @@ const MainRoutes = {
                 </RequireAuth>
             )
         },
-        {
-            path: '/marketplaces',
-            element: (
-                <RequireAuth permission={'templates:marketplace,templates:custom'}>
-                    <Marketplaces />
-                </RequireAuth>
-            )
-        },
+        // {
+        //     path: '/marketplaces',
+        //     element: (
+        //         <RequireAuth permission={'templates:marketplace,templates:custom'}>
+        //             <Marketplaces />
+        //         </RequireAuth>
+        //     )
+        // },
         {
             path: '/apikey',
             element: (
@@ -128,38 +129,38 @@ const MainRoutes = {
                 </RequireAuth>
             )
         },
-        {
-            path: '/assistants',
-            element: (
-                <RequireAuth permission={'assistants:view'}>
-                    <Assistants />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/assistants/custom',
-            element: (
-                <RequireAuth permission={'assistants:view'}>
-                    <CustomAssistantLayout />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/assistants/custom/:id',
-            element: (
-                <RequireAuth permission={'assistants:view'}>
-                    <CustomAssistantConfigurePreview />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/assistants/openai',
-            element: (
-                <RequireAuth permission={'assistants:view'}>
-                    <OpenAIAssistantLayout />
-                </RequireAuth>
-            )
-        },
+        // {
+        //     path: '/assistants',
+        //     element: (
+        //         <RequireAuth permission={'assistants:view'}>
+        //             <Assistants />
+        //         </RequireAuth>
+        //     )
+        // },
+        // {
+        //     path: '/assistants/custom',
+        //     element: (
+        //         <RequireAuth permission={'assistants:view'}>
+        //             <CustomAssistantLayout />
+        //         </RequireAuth>
+        //     )
+        // },
+        // {
+        //     path: '/assistants/custom/:id',
+        //     element: (
+        //         <RequireAuth permission={'assistants:view'}>
+        //             <CustomAssistantConfigurePreview />
+        //         </RequireAuth>
+        //     )
+        // },
+        // {
+        //     path: '/assistants/openai',
+        //     element: (
+        //         <RequireAuth permission={'assistants:view'}>
+        //             <OpenAIAssistantLayout />
+        //         </RequireAuth>
+        //     )
+        // },
         {
             path: '/credentials',
             element: (

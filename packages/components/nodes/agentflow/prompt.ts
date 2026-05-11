@@ -1,76 +1,76 @@
-export const DEFAULT_SUMMARIZER_TEMPLATE = `Progressively summarize the conversation provided and return a new summary.
+export const DEFAULT_SUMMARIZER_TEMPLATE = `Hãy tóm tắt dần dần cuộc hội thoại được cung cấp và trả về bản tóm tắt mới.
 
-EXAMPLE:
-Human: Why do you think artificial intelligence is a force for good?
-AI: Because artificial intelligence will help humans reach their full potential.
+VÍ DỤ:
+Người dùng: Bạn nghĩ trí tuệ nhân tạo là điều tốt vì sao?
+AI: Vì trí tuệ nhân tạo sẽ giúp con người phát huy hết tiềm năng của mình.
 
-New summary:
-The human asks what the AI thinks of artificial intelligence. The AI thinks artificial intelligence is a force for good because it will help humans reach their full potential.
-END OF EXAMPLE
+Tóm tắt mới:
+Người dùng hỏi AI nghĩ gì về trí tuệ nhân tạo. AI cho rằng trí tuệ nhân tạo là điều tốt vì nó sẽ giúp con người phát huy hết tiềm năng.
+KẾT THÚC VÍ DỤ
 
-Conversation:
+Cuộc hội thoại:
 {conversation}
 
-New summary:`
+Tóm tắt mới:`
 
-export const DEFAULT_HUMAN_INPUT_DESCRIPTION = `Summarize the conversation between the user and the assistant, reiterate the last message from the assistant, and ask if user would like to proceed or if they have any feedback. 
-- Begin by capturing the key points of the conversation, ensuring that you reflect the main ideas and themes discussed.
-- Then, clearly reproduce the last message sent by the assistant to maintain continuity. Make sure the whole message is reproduced.
-- Finally, ask the user if they would like to proceed, or provide any feedback on the last assistant message
+export const DEFAULT_HUMAN_INPUT_DESCRIPTION = `Tóm tắt cuộc hội thoại giữa người dùng và trợ lý, nhắc lại tin nhắn cuối cùng từ trợ lý, và hỏi người dùng muốn tiếp tục hay có phản hồi gì không.
+- Bắt đầu bằng cách nắm bắt các điểm chính của cuộc hội thoại, đảm bảo phản ánh các ý tưởng và chủ đề chính đã thảo luận.
+- Sau đó, trình bày lại chính xác tin nhắn cuối cùng của trợ lý để duy trì tính liên tục. Đảm bảo toàn bộ tin nhắn được trình bày lại.
+- Cuối cùng, hỏi người dùng muốn tiếp tục hay có phản hồi gì về tin nhắn cuối của trợ lý.
 
-## Output Format The output should be structured in three parts in text:
+## Định dạng đầu ra - Đầu ra nên được cấu trúc thành ba phần dạng văn bản:
 
-- A summary of the conversation (1-3 sentences).
-- The last assistant message (exactly as it appeared).
-- Ask the user if they would like to proceed, or provide any feedback on last assistant message. No other explanation and elaboration is needed.
+- Tóm tắt cuộc hội thoại (1-3 câu).
+- Tin nhắn cuối của trợ lý (chính xác như đã xuất hiện).
+- Hỏi người dùng muốn tiếp tục hay có phản hồi gì. Không cần giải thích thêm.
 `
 
-export const DEFAULT_HUMAN_INPUT_DESCRIPTION_HTML = `<p>Summarize the conversation between the user and the assistant, reiterate the last message from the assistant, and ask if user would like to proceed or if they have any feedback. </p>
+export const DEFAULT_HUMAN_INPUT_DESCRIPTION_HTML = `<p>Tóm tắt cuộc hội thoại giữa người dùng và trợ lý, nhắc lại tin nhắn cuối cùng từ trợ lý, và hỏi người dùng muốn tiếp tục hay có phản hồi gì không.</p>
 <ul>
-<li>Begin by capturing the key points of the conversation, ensuring that you reflect the main ideas and themes discussed.</li>
-<li>Then, clearly reproduce the last message sent by the assistant to maintain continuity. Make sure the whole message is reproduced.</li>
-<li>Finally, ask the user if they would like to proceed, or provide any feedback on the last assistant message</li>
+<li>Bắt đầu bằng cách nắm bắt các điểm chính của cuộc hội thoại, đảm bảo phản ánh các ý tưởng và chủ đề chính đã thảo luận.</li>
+<li>Sau đó, trình bày lại chính xác tin nhắn cuối cùng của trợ lý để duy trì tính liên tục. Đảm bảo toàn bộ tin nhắn được trình bày lại.</li>
+<li>Cuối cùng, hỏi người dùng muốn tiếp tục hay có phản hồi gì về tin nhắn cuối của trợ lý.</li>
 </ul>
-<h2 id="output-format-the-output-should-be-structured-in-three-parts-">Output Format The output should be structured in three parts in text:</h2>
+<h2 id="output-format">Định dạng đầu ra - Đầu ra nên được cấu trúc thành ba phần dạng văn bản:</h2>
 <ul>
-<li>A summary of the conversation (1-3 sentences).</li>
-<li>The last assistant message (exactly as it appeared).</li>
-<li>Ask the user if they would like to proceed, or provide any feedback on last assistant message. No other explanation and elaboration is needed.</li>
+<li>Tóm tắt cuộc hội thoại (1-3 câu).</li>
+<li>Tin nhắn cuối của trợ lý (chính xác như đã xuất hiện).</li>
+<li>Hỏi người dùng muốn tiếp tục hay có phản hồi gì. Không cần giải thích thêm.</li>
 </ul>
 `
 
-export const CONDITION_AGENT_SYSTEM_PROMPT = `<p>You are part of a multi-agent system designed to make agent coordination and execution easy. Your task is to analyze the given input and select one matching scenario from a provided set of scenarios.</p>
+export const CONDITION_AGENT_SYSTEM_PROMPT = `<p>Bạn là một phần của hệ thống đa tác tử được thiết kế để phối hợp và thực thi agent dễ dàng. Nhiệm vụ của bạn là phân tích đầu vào và chọn một kịch bản phù hợp nhất từ danh sách kịch bản được cung cấp.</p>
     <ul>
-        <li><strong>Input</strong>: A string representing the user's query, message or data.</li>
-        <li><strong>Scenarios</strong>: A list of predefined scenarios that relate to the input.</li>
-        <li><strong>Instruction</strong>: Determine which of the provided scenarios is the best fit for the input.</li>
+        <li><strong>Đầu vào</strong>: Một chuỗi ký tự đại diện cho câu hỏi, tin nhắn hoặc dữ liệu của người dùng.</li>
+        <li><strong>Kịch bản</strong>: Danh sách các kịch bản được định nghĩa trước liên quan đến đầu vào.</li>
+        <li><strong>Hướng dẫn</strong>: Xác định kịch bản nào phù hợp nhất với đầu vào.</li>
     </ul>
-    <h2>Steps</h2>
+    <h2>Các bước</h2>
     <ol>
-        <li><strong>Read the input string</strong> and the list of scenarios.</li>
-        <li><strong>Analyze the content of the input</strong> to identify its main topic or intention.</li>
-        <li><strong>Compare the input with each scenario</strong>: Evaluate how well the input's topic or intention aligns with each of the provided scenarios and select the one that is the best fit.</li>
-        <li><strong>Output the result</strong>: Return the selected scenario in the specified JSON format.</li>
+        <li><strong>Đọc chuỗi đầu vào</strong> và danh sách kịch bản.</li>
+        <li><strong>Phân tích nội dung đầu vào</strong> để xác định chủ đề hoặc ý định chính.</li>
+        <li><strong>So sánh đầu vào với từng kịch bản</strong>: Đánh giá mức độ phù hợp giữa chủ đề/ý định của đầu vào với từng kịch bản và chọn kịch bản phù hợp nhất.</li>
+        <li><strong>Trả về kết quả</strong>: Trả về kịch bản được chọn theo định dạng JSON được chỉ định.</li>
     </ol>
-    <h2>Output Format</h2>
-    <p>Output should be a JSON object that names the selected scenario, like this: <code>{"output": "<selected_scenario_name>"}</code>. No explanation is needed.</p>
-    <h2>Examples</h2>
+    <h2>Định dạng đầu ra</h2>
+    <p>Đầu ra phải là một đối tượng JSON đặt tên cho kịch bản được chọn, như sau: <code>{"output": "<tên_kịch_bản_được_chọn>"}</code>. Không cần giải thích.</p>
+    <h2>Ví dụ</h2>
     <ol>
        <li>
-            <p><strong>Input</strong>: <code>{"input": "Hello", "scenarios": ["user is asking about AI", "user is not asking about AI"], "instruction": "Your task is to check if the user is asking about AI."}</code></p>
-            <p><strong>Output</strong>: <code>{"output": "user is not asking about AI"}</code></p>
+            <p><strong>Đầu vào</strong>: <code>{"input": "Xin chào", "scenarios": ["người dùng hỏi về AI", "người dùng không hỏi về AI"], "instruction": "Kiểm tra xem người dùng có đang hỏi về AI không."}</code></p>
+            <p><strong>Đầu ra</strong>: <code>{"output": "người dùng không hỏi về AI"}</code></p>
         </li>
         <li>
-            <p><strong>Input</strong>: <code>{"input": "What is AIGC?", "scenarios": ["user is asking about AI", "user is asking about the weather"], "instruction": "Your task is to check and see if the user is asking a topic about AI."}</code></p>
-            <p><strong>Output</strong>: <code>{"output": "user is asking about AI"}</code></p>
+            <p><strong>Đầu vào</strong>: <code>{"input": "AIGC là gì?", "scenarios": ["người dùng hỏi về AI", "người dùng hỏi về thời tiết"], "instruction": "Kiểm tra xem người dùng có đang hỏi về chủ đề AI không."}</code></p>
+            <p><strong>Đầu ra</strong>: <code>{"output": "người dùng hỏi về AI"}</code></p>
         </li>
         <li>
-            <p><strong>Input</strong>: <code>{"input": "Can you explain deep learning?", "scenarios": ["user is interested in AI topics", "user wants to order food"], "instruction": "Determine if the user is interested in learning about AI."}</code></p>
-            <p><strong>Output</strong>: <code>{"output": "user is interested in AI topics"}</code></p>
+            <p><strong>Đầu vào</strong>: <code>{"input": "Giải thích deep learning cho tôi?", "scenarios": ["người dùng quan tâm đến AI", "người dùng muốn đặt đồ ăn"], "instruction": "Xác định xem người dùng có quan tâm đến AI không."}</code></p>
+            <p><strong>Đầu ra</strong>: <code>{"output": "người dùng quan tâm đến AI"}</code></p>
         </li>
     </ol>
-    <h2>Note</h2>
+    <h2>Lưu ý</h2>
     <ul>
-        <li>Ensure that the input scenarios align well with potential user queries for accurate matching.</li>
-        <li>DO NOT include anything other than the JSON in your response.</li>
+        <li>Đảm bảo các kịch bản đầu vào phù hợp với các câu hỏi tiềm năng của người dùng để so khớp chính xác.</li>
+        <li>KHÔNG bao gồm bất cứ thứ gì khác ngoài JSON trong phản hồi của bạn.</li>
     </ul>`

@@ -7,9 +7,9 @@ import { RequireAuth } from '@/routes/RequireAuth'
 
 // canvas routing
 const Canvas = Loadable(lazy(() => import('@/views/canvas')))
-const MarketplaceCanvas = Loadable(lazy(() => import('@/views/marketplaces/MarketplaceCanvas')))
+// const MarketplaceCanvas = Loadable(lazy(() => import('@/views/marketplaces/MarketplaceCanvas')))
 const CanvasV2 = Loadable(lazy(() => import('@/views/agentflowsv2/Canvas')))
-const MarketplaceCanvasV2 = Loadable(lazy(() => import('@/views/agentflowsv2/MarketplaceCanvas')))
+// const MarketplaceCanvasV2 = Loadable(lazy(() => import('@/views/agentflowsv2/MarketplaceCanvas')))
 
 // ==============================|| CANVAS ROUTING ||============================== //
 
@@ -17,38 +17,39 @@ const CanvasRoutes = {
     path: '/',
     element: <MinimalLayout />,
     children: [
-        {
-            path: '/canvas',
-            element: (
-                <RequireAuth permission={'chatflows:view'}>
-                    <Canvas />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/canvas/:id',
-            element: (
-                <RequireAuth permission={'chatflows:view'}>
-                    <Canvas />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/agentcanvas',
-            element: (
-                <RequireAuth permission={'agentflows:view'}>
-                    <Canvas />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/agentcanvas/:id',
-            element: (
-                <RequireAuth permission={'agentflows:view'}>
-                    <Canvas />
-                </RequireAuth>
-            )
-        },
+        // {
+        //     path: '/canvas',
+        //     element: (
+        //         <RequireAuth permission={'chatflows:view'}>
+        //             <Canvas />
+        //         </RequireAuth>
+        //     )
+        // },
+        // {
+        //     path: '/canvas/:id',
+        //     element: (
+        //         <RequireAuth permission={'chatflows:view'}>
+        //             <Canvas />
+        //         </RequireAuth>
+        //     )
+        // },
+        // V1 agentcanvas routes removed — V2 only
+        // {
+        //     path: '/agentcanvas',
+        //     element: (
+        //         <RequireAuth permission={'agentflows:view'}>
+        //             <Canvas />
+        //         </RequireAuth>
+        //     )
+        // },
+        // {
+        //     path: '/agentcanvas/:id',
+        //     element: (
+        //         <RequireAuth permission={'agentflows:view'}>
+        //             <Canvas />
+        //         </RequireAuth>
+        //     )
+        // },
         {
             path: '/v2/agentcanvas',
             element: (
@@ -65,22 +66,22 @@ const CanvasRoutes = {
                 </RequireAuth>
             )
         },
-        {
-            path: '/marketplace/:id',
-            element: (
-                <RequireAuth permission={'templates:marketplace,templates:custom'}>
-                    <MarketplaceCanvas />
-                </RequireAuth>
-            )
-        },
-        {
-            path: '/v2/marketplace/:id',
-            element: (
-                <RequireAuth permission={'templates:marketplace,templates:custom'}>
-                    <MarketplaceCanvasV2 />
-                </RequireAuth>
-            )
-        }
+        // {
+        //     path: '/marketplace/:id',
+        //     element: (
+        //         <RequireAuth permission={'templates:marketplace,templates:custom'}>
+        //             <MarketplaceCanvas />
+        //         </RequireAuth>
+        //     )
+        // },
+        // {
+        //     path: '/v2/marketplace/:id',
+        //     element: (
+        //         <RequireAuth permission={'templates:marketplace,templates:custom'}>
+        //             <MarketplaceCanvasV2 />
+        //         </RequireAuth>
+        //     )
+        // }
     ]
 }
 
