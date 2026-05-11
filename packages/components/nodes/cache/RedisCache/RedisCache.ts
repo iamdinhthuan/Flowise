@@ -74,8 +74,6 @@ class RedisCache implements INode {
                 value = await client.get(key)
             }
 
-            client.quit()
-
             return generations.length > 0 ? generations : null
         }
 
@@ -89,19 +87,17 @@ class RedisCache implements INode {
                 client = await getRedisClient(nodeData, options)
             }
 
+            const pipeline = client.pipeline()
             for (let i = 0; i < value.length; i += 1) {
                 const key = getCacheKey(prompt, llmKey, String(i))
                 if (ttl) {
-                    await client.set(key, JSON.stringify(serializeGeneration(value[i])), 'PX', parseInt(ttl, 10))
+                    pipeline.set(key, JSON.stringify(serializeGeneration(value[i])), 'PX', parseInt(ttl, 10))
                 } else {
-                    await client.set(key, JSON.stringify(serializeGeneration(value[i])))
+                    pipeline.set(key, JSON.stringify(serializeGeneration(value[i])))
                 }
             }
-
-            client.quit()
+            await pipeline.exec()
         }
-
-        client.quit()
 
         return redisClient
     }

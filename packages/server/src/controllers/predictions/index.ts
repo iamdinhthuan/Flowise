@@ -31,6 +31,7 @@ const createPrediction = async (req: Request, res: Response, next: NextFunction)
         if (!chatflow) {
             throw new InternalFlowiseError(StatusCodes.NOT_FOUND, `Chatflow ${req.params.id} not found`)
         }
+        ;(req as any).chatflow = chatflow
         let isDomainAllowed = true
         let unauthorizedOriginError = 'This site is not allowed to access this chatbot'
         logger.info(`[server]: Request originated from ${req.headers.origin || 'UNKNOWN ORIGIN'}`)
@@ -54,7 +55,7 @@ const createPrediction = async (req: Request, res: Response, next: NextFunction)
             }
         }
         if (isDomainAllowed) {
-            const streamable = await chatflowsService.checkIfChatflowIsValidForStreaming(req.params.id)
+            const streamable = await chatflowsService.checkIfChatflowIsValidForStreaming(req.params.id, chatflow)
             const isStreamingRequested = req.body.streaming === 'true' || req.body.streaming === true
             if (streamable?.isStreaming && isStreamingRequested) {
                 const sseStreamer = getRunningExpressApp().sseStreamer

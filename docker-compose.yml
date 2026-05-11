@@ -1,22 +1,25 @@
-version: '3.8'
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: flowise
-      POSTGRES_PASSWORD: flowise123
-      POSTGRES_DB: flowise
+      POSTGRES_USER: ${POSTGRES_USER:-flowise}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-flowise}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flowise"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flowise}"]
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   flowise:
     build: .
@@ -26,17 +29,45 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      - NODE_ENV=production
       - LITE_MODE=true
       - DATABASE_TYPE=postgres
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
-      - DATABASE_USER=flowise
-      - DATABASE_PASSWORD=flowise123
-      - DATABASE_NAME=flowise
+      - DATABASE_USER=${POSTGRES_USER:-flowise}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - DATABASE_NAME=${POSTGRES_DB:-flowise}
+      - DATABASE_PATH=/home/node/.flowise
+      - SECRETKEY_PATH=/home/node/.flowise
+      - LOG_PATH=/home/node/.flowise/logs
+      - BLOB_STORAGE_PATH=/home/node/.flowise/storage
+      - FLOWISE_DEFAULT_BODY_SIZE_LIMIT=${FLOWISE_DEFAULT_BODY_SIZE_LIMIT:-5mb}
+      - FLOWISE_FILE_SIZE_LIMIT=${FLOWISE_FILE_SIZE_LIMIT:-50mb}
+      - CHATFLOW_CACHE_TTL_MS=${CHATFLOW_CACHE_TTL_MS:-5000}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-5}
+      - REMOVE_ON_AGE=${REMOVE_ON_AGE:-86400}
+      - REMOVE_ON_COUNT=${REMOVE_ON_COUNT:-1000}
+      - CACHE_POOL_MAX_ENTRIES=${CACHE_POOL_MAX_ENTRIES:-500}
+      - CACHE_POOL_TTL_SECONDS=${CACHE_POOL_TTL_SECONDS:-86400}
+      - FLOWISE_MAX_INDEXING_DOCUMENTS=${FLOWISE_MAX_INDEXING_DOCUMENTS:-10000}
+      - FLOWISE_MAX_INDEXING_CHARACTERS=${FLOWISE_MAX_INDEXING_CHARACTERS:-20000000}
     ports:
-      - "3000:3000"
+      - "${FLOWISE_PORT:-3000}:3000"
     volumes:
-      - flowise_data:/root/.flowise
+      - flowise_data:/home/node/.flowise
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/readyz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 512M
 
 volumes:
   postgres_data:

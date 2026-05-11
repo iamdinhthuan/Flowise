@@ -107,10 +107,27 @@ describe('onLLMEnd Usage Metadata Extraction Logic', () => {
             outputText = output.content ?? ''
             usageMetadata = output.usageMetadata ?? output.usage_metadata
             if (usageMetadata) {
+                const inputTokenDetails = usageMetadata.input_token_details ?? usageMetadata.prompt_tokens_details
+                const cacheRead =
+                    inputTokenDetails?.cache_read ??
+                    inputTokenDetails?.cached_tokens ??
+                    usageMetadata.cache_read_input_tokens ??
+                    usageMetadata.cacheReadInputTokens
+                const cacheCreation =
+                    inputTokenDetails?.cache_creation ??
+                    inputTokenDetails?.cache_creation_input_tokens ??
+                    usageMetadata.cache_creation_input_tokens ??
+                    usageMetadata.cacheCreationInputTokens
                 usageMetadata = {
                     input_tokens: usageMetadata.input_tokens ?? usageMetadata.prompt_tokens,
                     output_tokens: usageMetadata.output_tokens ?? usageMetadata.completion_tokens,
                     total_tokens: usageMetadata.total_tokens
+                }
+                if (cacheRead !== undefined || cacheCreation !== undefined) {
+                    usageMetadata.input_token_details = {
+                        ...(cacheRead !== undefined ? { cache_read: cacheRead } : {}),
+                        ...(cacheCreation !== undefined ? { cache_creation: cacheCreation } : {})
+                    }
                 }
             }
             const responseMetadata = output.responseMetadata ?? output.response_metadata
@@ -137,7 +154,8 @@ describe('onLLMEnd Usage Metadata Extraction Logic', () => {
         return {
             prompt_tokens: usageMetadata.input_tokens,
             completion_tokens: usageMetadata.output_tokens,
-            total_tokens: usageMetadata.total_tokens
+            total_tokens: usageMetadata.total_tokens,
+            ...(usageMetadata.input_token_details ? { input_token_details: usageMetadata.input_token_details } : {})
         }
     }
 
@@ -221,6 +239,47 @@ describe('onLLMEnd Usage Metadata Extraction Logic', () => {
             })
 
             expect(result.usageMetadata?.input_tokens).toBe(100)
+        })
+
+        it('should preserve cached prompt token details from LangChain usage metadata', () => {
+            const result = extractOutputData({
+                content: 'Test',
+                usageMetadata: {
+                    input_tokens: 2048,
+                    output_tokens: 120,
+                    total_tokens: 2168,
+                    input_token_details: {
+                        cache_read: 1536
+                    }
+                }
+            })
+
+            expect(result.usageMetadata).toEqual({
+                input_tokens: 2048,
+                output_tokens: 120,
+                total_tokens: 2168,
+                input_token_details: {
+                    cache_read: 1536
+                }
+            })
+        })
+
+        it('should normalize OpenAI cached_tokens into cache_read usage metadata', () => {
+            const result = extractOutputData({
+                content: 'Test',
+                usageMetadata: {
+                    prompt_tokens: 2048,
+                    completion_tokens: 120,
+                    total_tokens: 2168,
+                    prompt_tokens_details: {
+                        cached_tokens: 1024
+                    }
+                }
+            })
+
+            expect(result.usageMetadata?.input_token_details).toEqual({
+                cache_read: 1024
+            })
         })
     })
 
@@ -314,6 +373,30 @@ describe('onLLMEnd Usage Metadata Extraction Logic', () => {
                 prompt_tokens: 100,
                 completion_tokens: 50,
                 total_tokens: 150
+            })
+        })
+
+        it('should include cached prompt token details for LangSmith metadata', () => {
+            const result = extractOutputData({
+                content: 'Test',
+                usageMetadata: {
+                    input_tokens: 100,
+                    output_tokens: 50,
+                    total_tokens: 150,
+                    input_token_details: {
+                        cache_read: 64
+                    }
+                }
+            })
+            const langSmithUsage = formatForLangSmith(result.usageMetadata)
+
+            expect(langSmithUsage).toEqual({
+                prompt_tokens: 100,
+                completion_tokens: 50,
+                total_tokens: 150,
+                input_token_details: {
+                    cache_read: 64
+                }
             })
         })
     })

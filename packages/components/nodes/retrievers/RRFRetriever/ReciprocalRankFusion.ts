@@ -43,54 +43,57 @@ export class ReciprocalRankFusion extends BaseDocumentCompressor {
             prompt: chatPrompt
         })
         const multipleQueries = await llmChain.call({ input: query })
-        const queries = []
-        queries.push(query)
-        multipleQueries.text.split('\n').map((q: string) => {
-            queries.push(q)
-        })
-        const docList: Document<Record<string, any>>[][] = []
-        for (let i = 0; i < queries.length; i++) {
-            const resultOne = await this.baseRetriever.vectorStore.similaritySearch(queries[i], 5, this.baseRetriever.filter)
-            const docs: any[] = []
-            resultOne.forEach((doc) => {
-                docs.push(doc)
-            })
-            docList.push(docs)
-        }
+        const generatedQueries = multipleQueries.text
+            .split('\n')
+            .map((q: string) => q.trim())
+            .filter(Boolean)
+            .slice(0, this.queryCount)
+        const queries = Array.from(new Set([query, ...generatedQueries]))
+        const docList = await Promise.all(
+            queries.map((searchQuery) => this.baseRetriever.vectorStore.similaritySearch(searchQuery, this.topK, this.baseRetriever.filter))
+        )
 
         return this.reciprocalRankFunction(docList, this.c)
     }
 
     reciprocalRankFunction(docList: Document<Record<string, any>>[][], k: number): Document<Record<string, any>>[] {
+        const rankedDocuments = new Map<string, { doc: Document<Record<string, any>>; score: number }>()
+
+        const getDocumentKey = (doc: Document<Record<string, any>>): string => {
+            const metadata = { ...(doc.metadata ?? {}) }
+            delete metadata.relevancy_score
+            return `${doc.pageContent}|${JSON.stringify(metadata)}`
+        }
+
         docList.forEach((docs: Document<Record<string, any>>[]) => {
             docs.forEach((doc: any, index: number) => {
-                let rank = index + 1
-                if (doc.metadata.relevancy_score) {
-                    doc.metadata.relevancy_score += 1 / (rank + k)
+                const rank = index + 1
+                const score = 1 / (rank + k)
+                const key = getDocumentKey(doc)
+                const existingDoc = rankedDocuments.get(key)
+                if (existingDoc) {
+                    existingDoc.score += score
                 } else {
-                    doc.metadata.relevancy_score = 1 / (rank + k)
+                    rankedDocuments.set(key, {
+                        doc: new Document({
+                            pageContent: doc.pageContent,
+                            metadata: {
+                                ...(doc.metadata ?? {}),
+                                relevancy_score: score
+                            }
+                        }),
+                        score
+                    })
                 }
             })
         })
-        const scoreArray: any[] = []
-        docList.forEach((docs: Document<Record<string, any>>[]) => {
-            docs.forEach((doc: any) => {
-                scoreArray.push(doc.metadata.relevancy_score)
+
+        return Array.from(rankedDocuments.values())
+            .map(({ doc, score }) => {
+                doc.metadata.relevancy_score = score
+                return doc
             })
-        })
-        scoreArray.sort((a, b) => b - a)
-        const rerankedDocuments: Document<Record<string, any>>[] = []
-        const seenScores: any[] = []
-        scoreArray.forEach((score) => {
-            docList.forEach((docs) => {
-                docs.forEach((doc: any) => {
-                    if (doc.metadata.relevancy_score === score && seenScores.indexOf(score) === -1) {
-                        rerankedDocuments.push(doc)
-                        seenScores.push(doc.metadata.relevancy_score)
-                    }
-                })
-            })
-        })
-        return rerankedDocuments.splice(0, this.topK)
+            .sort((a, b) => b.metadata.relevancy_score - a.metadata.relevancy_score)
+            .slice(0, this.topK)
     }
 }

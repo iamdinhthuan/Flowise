@@ -22,6 +22,8 @@ export const WHITELIST_URLS = [
     '/api/v1/get-upload-file',
     '/api/v1/ip',
     '/api/v1/ping',
+    '/api/v1/livez',
+    '/api/v1/readyz',
     '/api/v1/version',
     '/api/v1/attachments',
     '/api/v1/auth/resolve',

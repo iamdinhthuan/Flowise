@@ -12,6 +12,8 @@ import logger from './utils/logger'
 
 let appDataSource: DataSource
 
+const isDatabaseVerboseLoggingEnabled = (): boolean => process.env.DATABASE_LOGGING === 'true' || process.env.DEBUG === 'true'
+
 export const init = async (): Promise<void> => {
     let homePath
     let flowisePath = path.join(getUserHome(), '.flowise')
@@ -78,9 +80,9 @@ export const init = async (): Promise<void> => {
                 extra: {
                     idleTimeoutMillis: 120000
                 },
-                logging: ['error', 'warn', 'info', 'log'],
+                logging: isDatabaseVerboseLoggingEnabled() ? ['error', 'warn', 'info', 'log'] : ['error', 'warn'],
                 logger: 'advanced-console',
-                logNotifications: true,
+                logNotifications: isDatabaseVerboseLoggingEnabled(),
                 poolErrorHandler: (err) => {
                     logger.error(`Database pool error: ${JSON.stringify(err)}`)
                 },

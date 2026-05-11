@@ -17,6 +17,20 @@ interface IKnowledgeBase {
     documentStore: string
 }
 
+const getDocumentKey = (doc: Document): string => `${doc.pageContent}|${JSON.stringify(doc.metadata ?? {})}`
+
+const dedupeDocuments = (docs: Document[]): Document[] => {
+    const seen = new Set<string>()
+    const dedupedDocs: Document[] = []
+    for (const doc of docs) {
+        const key = getDocumentKey(doc)
+        if (seen.has(key)) continue
+        seen.add(key)
+        dedupedDocs.push(doc)
+    }
+    return dedupedDocs
+}
+
 class Retriever_Agentflow implements INode {
     label: string
     name: string
@@ -152,7 +166,7 @@ class Retriever_Agentflow implements INode {
         const knowledgeBases = nodeData.inputs?.retrieverKnowledgeDocumentStores as IKnowledgeBase[]
         if (knowledgeBases && knowledgeBases.length > 0) {
             for (const knowledgeBase of knowledgeBases) {
-                const [storeId, _] = knowledgeBase.documentStore.split(':')
+                const [storeId] = knowledgeBase.documentStore.split(':')
 
                 const docStoreVectorInstanceFilePath = options.componentNodes['documentStoreVS'].filePath as string
                 const docStoreVectorModule = await import(docStoreVectorInstanceFilePath)
@@ -172,8 +186,10 @@ class Retriever_Agentflow implements INode {
                     options
                 )) as BaseRetriever
 
-                docs = await docStoreVectorInstance.invoke(retrieverQuery || input, { signal: abortController?.signal })
+                const retrievedDocs = await docStoreVectorInstance.invoke(retrieverQuery || input, { signal: abortController?.signal })
+                docs.push(...retrievedDocs)
             }
+            docs = dedupeDocuments(docs)
         }
 
         const docsText = docs.map((doc) => doc.pageContent).join('\n')

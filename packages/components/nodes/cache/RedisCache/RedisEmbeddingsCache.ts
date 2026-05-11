@@ -129,8 +129,14 @@ class CacheBackedEmbeddings extends Embeddings {
     }
 
     async embedQuery(document: string): Promise<number[]> {
-        const res = this.underlyingEmbeddings.embedQuery(document)
-        this.redisClient?.quit()
+        const cacheKey = `query:${document}`
+        const [cachedVector] = await this.documentEmbeddingStore.mget([cacheKey])
+        if (cachedVector) {
+            return cachedVector
+        }
+
+        const res = await this.underlyingEmbeddings.embedQuery(document)
+        await this.documentEmbeddingStore.mset([[cacheKey, res]])
         return res
     }
 
@@ -152,7 +158,6 @@ class CacheBackedEmbeddings extends Embeddings {
                 vectors[missingIndicies[i]] = missingVectors[i]
             }
         }
-        this.redisClient?.quit()
         return vectors as number[][]
     }
 

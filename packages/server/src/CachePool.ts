@@ -1,6 +1,28 @@
 import { IActiveCache, MODE } from './Interface'
 import Redis from 'ioredis'
 
+const CACHE_POOL_MAX_ENTRIES = parseInt(process.env.CACHE_POOL_MAX_ENTRIES || '500')
+const CACHE_POOL_TTL_SECONDS = parseInt(process.env.CACHE_POOL_TTL_SECONDS || '86400')
+
+const pruneCacheObject = (cache: Record<string, any>) => {
+    if (!Number.isFinite(CACHE_POOL_MAX_ENTRIES) || CACHE_POOL_MAX_ENTRIES <= 0) return
+
+    const keys = Object.keys(cache)
+    while (keys.length > CACHE_POOL_MAX_ENTRIES) {
+        const oldestKey = keys.shift()
+        if (!oldestKey) return
+        delete cache[oldestKey]
+    }
+}
+
+const setRedisValue = async (client: Redis, key: string, value: string) => {
+    if (Number.isFinite(CACHE_POOL_TTL_SECONDS) && CACHE_POOL_TTL_SECONDS > 0) {
+        await client.set(key, value, 'EX', CACHE_POOL_TTL_SECONDS)
+    } else {
+        await client.set(key, value)
+    }
+}
+
 /**
  * This pool is to keep track of in-memory cache used for LLM and Embeddings
  */
@@ -92,10 +114,11 @@ export class CachePool {
         if (process.env.MODE === MODE.QUEUE) {
             if (this.redisClient) {
                 const serializedValue = JSON.stringify(Array.from(value.entries()))
-                await this.redisClient.set(`llmCache:${chatflowid}`, serializedValue)
+                await setRedisValue(this.redisClient, `llmCache:${chatflowid}`, serializedValue)
             }
         } else {
             this.activeLLMCache[chatflowid] = value
+            pruneCacheObject(this.activeLLMCache)
         }
     }
 
@@ -108,10 +131,11 @@ export class CachePool {
         if (process.env.MODE === MODE.QUEUE) {
             if (this.redisClient) {
                 const serializedValue = JSON.stringify(Array.from(value.entries()))
-                await this.redisClient.set(`embeddingCache:${chatflowid}`, serializedValue)
+                await setRedisValue(this.redisClient, `embeddingCache:${chatflowid}`, serializedValue)
             }
         } else {
             this.activeEmbeddingCache[chatflowid] = value
+            pruneCacheObject(this.activeEmbeddingCache)
         }
     }
 
@@ -124,6 +148,7 @@ export class CachePool {
         // Only add to cache for non-queue mode, because we are storing the toolkit instances in memory, and we can't store them in redis
         if (process.env.MODE !== MODE.QUEUE) {
             this.activeMCPCache[`mcpCache:${cacheKey}`] = value
+            pruneCacheObject(this.activeMCPCache)
         }
     }
 

@@ -1,11 +1,27 @@
-import { memo, useMemo } from 'react'
+import { memo, useEffect, useMemo, useState } from 'react'
 import PropTypes from 'prop-types'
 import ReactMarkdown from 'react-markdown'
 import './Markdown.css'
 import { CodeBlock } from '../markdown/CodeBlock'
 import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import rehypeMathjax from 'rehype-mathjax'
+
+let mathPluginsPromise
+
+const loadMathMarkdownPlugins = () => {
+    if (!mathPluginsPromise) {
+        mathPluginsPromise = Promise.all([import('remark-math'), import('rehype-mathjax')])
+            .then(([remarkMathModule, rehypeMathjaxModule]) => ({
+                remarkMath: remarkMathModule.default,
+                rehypeMathjax: rehypeMathjaxModule.default
+            }))
+            .catch((error) => {
+                mathPluginsPromise = undefined
+                throw error
+            })
+    }
+
+    return mathPluginsPromise
+}
 
 /**
  * Checks if text likely contains LaTeX math notation
@@ -72,6 +88,8 @@ const preprocessLatex = (text) => {
  */
 export const MemoizedReactMarkdown = memo(
     ({ children, ...props }) => {
+        const [mathPlugins, setMathPlugins] = useState(null)
+
         // Preprocess text to improve LaTeX compatibility
         const processedChildren = useMemo(() => (typeof children === 'string' ? preprocessLatex(children) : children), [children])
 
@@ -82,16 +100,31 @@ export const MemoizedReactMarkdown = memo(
             return props.disableMath === true ? false : props.forceMath || hasLatex
         }, [processedChildren, props.forceMath, props.disableMath, props.mathPatterns])
 
+        useEffect(() => {
+            if (!shouldEnableMath || (props.remarkPlugins && props.rehypePlugins)) return
+
+            let isMounted = true
+            loadMathMarkdownPlugins()
+                .then((plugins) => {
+                    if (isMounted) setMathPlugins(plugins)
+                })
+                .catch(() => undefined)
+
+            return () => {
+                isMounted = false
+            }
+        }, [shouldEnableMath, props.remarkPlugins, props.rehypePlugins])
+
         // Configure plugins based on content
         const remarkPlugins = useMemo(() => {
             if (props.remarkPlugins) return props.remarkPlugins
-            return shouldEnableMath ? [remarkGfm, remarkMath] : [remarkGfm]
-        }, [props.remarkPlugins, shouldEnableMath])
+            return shouldEnableMath && mathPlugins?.remarkMath ? [remarkGfm, mathPlugins.remarkMath] : [remarkGfm]
+        }, [props.remarkPlugins, shouldEnableMath, mathPlugins])
 
         const rehypePlugins = useMemo(() => {
             if (props.rehypePlugins) return props.rehypePlugins
-            return shouldEnableMath ? [rehypeMathjax] : []
-        }, [props.rehypePlugins, shouldEnableMath])
+            return shouldEnableMath && mathPlugins?.rehypeMathjax ? [mathPlugins.rehypeMathjax] : []
+        }, [props.rehypePlugins, shouldEnableMath, mathPlugins])
 
         return (
             <div className='react-markdown'>

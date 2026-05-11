@@ -1,36 +1,33 @@
 # npm install -g artillery@latest
-# artillery run artillery-load-test.yml
-# Refer https://www.artillery.io/docs
+# FLOWISE_LOAD_TARGET=http://localhost:3000 FLOWISE_CHATFLOW_ID=<chatflow-id> artillery run artillery-load-test.yml
 
 config:
-    target: http://128.128.128.128:3000 # replace with your url
+    target: "{{ $processEnvironment.FLOWISE_LOAD_TARGET }}"
     phases:
-        - duration: 1
+        - duration: 30
           arrivalRate: 1
-          rampTo: 2
-          name: Warm up phase
-        - duration: 1
-          arrivalRate: 2
-          rampTo: 3
-          name: Ramp up load
-        - duration: 1
-          arrivalRate: 3
-          name: Sustained peak load
+          rampTo: 5
+          name: warmup
+        - duration: 60
+          arrivalRate: 5
+          rampTo: 20
+          name: ramp
+        - duration: 120
+          arrivalRate: 20
+          name: sustained
+    defaults:
+        headers:
+            Content-Type: application/json
 scenarios:
-    - flow:
-          - loop:
-                - post:
-                      url: '/api/v1/prediction/chatflow-id' # replace with your chatflowid
-                      json:
-                          question: 'hello' # replace with your question
-            count: 1 # how many request each user make
-
-# User  __
-# 3    /
-# 2   /
-# 1 _/
-#     1 2 3
-#     Seconds
-# Total Users = 2 + 3 + 3 = 8
-# Each making 1 HTTP call
-# Over a durations of 3 seconds
+    - name: readiness
+      weight: 1
+      flow:
+          - get:
+                url: '/api/v1/readyz'
+    - name: prediction
+      weight: 4
+      flow:
+          - post:
+                url: '/api/v1/prediction/{{ $processEnvironment.FLOWISE_CHATFLOW_ID }}'
+                json:
+                    question: '{{ $processEnvironment.FLOWISE_LOAD_QUESTION }}'

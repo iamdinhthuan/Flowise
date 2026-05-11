@@ -39,7 +39,19 @@ export default defineConfig(async ({ mode }) => {
         },
         root: resolve(__dirname),
         build: {
-            outDir: './build'
+            outDir: './build',
+            chunkSizeWarningLimit: 1200,
+            rollupOptions: {
+                output: {
+                    manualChunks: {
+                        react: ['react', 'react-dom', 'react-router', 'react-router-dom'],
+                        mui: ['@mui/material', '@mui/icons-material', '@mui/system'],
+                        editor: ['@uiw/react-codemirror', '@codemirror/lang-javascript', '@codemirror/lang-json'],
+                        flow: ['reactflow'],
+                        charts: ['recharts']
+                    }
+                }
+            }
         },
         server: {
             open: true,

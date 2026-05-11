@@ -41,19 +41,63 @@ export const enum ChatflowErrorMessage {
     WORKSPACE_ID_REQUIRED = 'Workspace ID is required'
 }
 
+const chatflowByIdCache = new Map<string, { expiresAt: number; value: ChatFlow }>()
+
+const getChatflowCacheTtlMs = (): number => {
+    const ttl = parseInt(process.env.CHATFLOW_CACHE_TTL_MS || '5000')
+    return Number.isFinite(ttl) && ttl >= 0 ? ttl : 5000
+}
+
+const getChatflowCacheKey = (chatflowId: string, workspaceId?: string): string => `${workspaceId || '*'}:${chatflowId}`
+
+const getCachedChatflowById = (chatflowId: string, workspaceId?: string): ChatFlow | undefined => {
+    const ttl = getChatflowCacheTtlMs()
+    if (ttl === 0) return undefined
+
+    const key = getChatflowCacheKey(chatflowId, workspaceId)
+    const cached = chatflowByIdCache.get(key)
+    if (!cached) return undefined
+    if (cached.expiresAt <= Date.now()) {
+        chatflowByIdCache.delete(key)
+        return undefined
+    }
+    return { ...cached.value }
+}
+
+const setCachedChatflowById = (chatflow: ChatFlow, workspaceId?: string) => {
+    const ttl = getChatflowCacheTtlMs()
+    if (ttl === 0) return
+
+    chatflowByIdCache.set(getChatflowCacheKey(chatflow.id, workspaceId), {
+        expiresAt: Date.now() + ttl,
+        value: { ...chatflow }
+    })
+}
+
+const invalidateChatflowCache = (chatflowId: string) => {
+    for (const key of chatflowByIdCache.keys()) {
+        if (key.endsWith(`:${chatflowId}`)) {
+            chatflowByIdCache.delete(key)
+        }
+    }
+}
+
 export function validateChatflowType(type: ChatflowType | undefined) {
     if (!Object.values(EnumChatflowType).includes(type as EnumChatflowType))
         throw new InternalFlowiseError(StatusCodes.BAD_REQUEST, ChatflowErrorMessage.INVALID_CHATFLOW_TYPE)
 }
 
 // Check if chatflow valid for streaming
-const checkIfChatflowIsValidForStreaming = async (chatflowId: string): Promise<any> => {
+const checkIfChatflowIsValidForStreaming = async (chatflowId: string, existingChatflow?: ChatFlow): Promise<any> => {
     try {
         const appServer = getRunningExpressApp()
         //**
-        const chatflow = await appServer.AppDataSource.getRepository(ChatFlow).findOneBy({
-            id: chatflowId
-        })
+        const chatflow =
+            existingChatflow?.id === chatflowId
+                ? existingChatflow
+                : await appServer.AppDataSource.getRepository(ChatFlow).findOneBy({
+                      id: chatflowId
+                  })
         if (!chatflow) {
             throw new InternalFlowiseError(StatusCodes.NOT_FOUND, `Chatflow ${chatflowId} not found`)
         }
@@ -124,6 +168,7 @@ const deleteChatflow = async (chatflowId: string, orgId: string, workspaceId: st
         const appServer = getRunningExpressApp()
 
         const chatflow = await getChatflowById(chatflowId, workspaceId)
+        invalidateChatflowCache(chatflowId)
 
         const dbResponse = await appServer.AppDataSource.getRepository(ChatFlow).delete({ id: chatflowId })
 
@@ -275,6 +320,10 @@ const getChatflowById = async (chatflowId: string, workspaceId?: string): Promis
         if (!isValidUUID(chatflowId)) {
             throw new InternalFlowiseError(StatusCodes.BAD_REQUEST, ChatflowErrorMessage.INVALID_CHATFLOW_ID)
         }
+        const cachedChatflow = getCachedChatflowById(chatflowId, workspaceId)
+        if (cachedChatflow) {
+            return cachedChatflow
+        }
         const appServer = getRunningExpressApp()
         const dbResponse = await appServer.AppDataSource.getRepository(ChatFlow).findOne({
             where: {
@@ -285,6 +334,7 @@ const getChatflowById = async (chatflowId: string, workspaceId?: string): Promis
         if (!dbResponse) {
             throw new InternalFlowiseError(StatusCodes.NOT_FOUND, `Chatflow ${chatflowId} not found in the database!`)
         }
+        setCachedChatflowById(dbResponse, workspaceId)
         return dbResponse
     } catch (error) {
         if (error instanceof InternalFlowiseError) {
@@ -441,6 +491,7 @@ const saveChatflow = async (
         { status: FLOWISE_COUNTER_STATUS.SUCCESS }
     )
 
+    invalidateChatflowCache(dbResponse.id)
     return dbResponse
 }
 
@@ -543,6 +594,7 @@ const updateChatflow = async (
         }
     }
 
+    invalidateChatflowCache(dbResponse.id)
     return dbResponse
 }
 
@@ -635,6 +687,7 @@ const setWebhookSecret = async (chatflowId: string, workspaceId: string): Promis
         chatflow.webhookSecret = await encryptCredentialData({ secret: plaintext })
         chatflow.webhookSecretConfigured = true
         await repo.save(chatflow)
+        invalidateChatflowCache(chatflowId)
         return { webhookSecret: plaintext }
     } catch (error) {
         if (error instanceof InternalFlowiseError) throw error
@@ -654,6 +707,7 @@ const clearWebhookSecret = async (chatflowId: string, workspaceId: string): Prom
         chatflow.webhookSecret = null
         chatflow.webhookSecretConfigured = false
         await repo.save(chatflow)
+        invalidateChatflowCache(chatflowId)
     } catch (error) {
         if (error instanceof InternalFlowiseError) throw error
         throw new InternalFlowiseError(

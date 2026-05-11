@@ -5,9 +5,58 @@ import logger from '../utils/logger'
 const QUEUE_REDIS_EVENT_STREAM_MAX_LEN = process.env.QUEUE_REDIS_EVENT_STREAM_MAX_LEN
     ? parseInt(process.env.QUEUE_REDIS_EVENT_STREAM_MAX_LEN)
     : 10000
-const WORKER_CONCURRENCY = process.env.WORKER_CONCURRENCY ? parseInt(process.env.WORKER_CONCURRENCY) : 100000
-const REMOVE_ON_AGE = process.env.REMOVE_ON_AGE ? parseInt(process.env.REMOVE_ON_AGE) : -1
-const REMOVE_ON_COUNT = process.env.REMOVE_ON_COUNT ? parseInt(process.env.REMOVE_ON_COUNT) : -1
+const DEFAULT_WORKER_CONCURRENCY = 5
+const DEFAULT_REMOVE_ON_AGE = 24 * 60 * 60
+const DEFAULT_REMOVE_ON_COUNT = 1000
+
+const parsePositiveInteger = (value: string | undefined, fallback: number): number => {
+    if (!value) return fallback
+    const parsedValue = parseInt(value)
+    return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : fallback
+}
+
+const parseRetentionInteger = (value: string | undefined, fallback: number): number => {
+    if (!value) return fallback
+    const parsedValue = parseInt(value)
+    return Number.isFinite(parsedValue) ? parsedValue : fallback
+}
+
+const normalizeQueueNameForEnv = (queueName: string): string => queueName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()
+
+const getQueueTypeForEnv = (queueName: string): string | undefined => {
+    const normalizedQueueName = queueName.toLowerCase()
+    if (normalizedQueueName.includes('prediction')) return 'PREDICTION'
+    if (normalizedQueueName.includes('upsert')) return 'UPSERT'
+    if (normalizedQueueName.includes('schedule')) return 'SCHEDULE'
+    return undefined
+}
+
+const getWorkerConcurrency = (queueName: string): number => {
+    const queueSpecificEnvName = `${normalizeQueueNameForEnv(queueName)}_WORKER_CONCURRENCY`
+    const queueTypeEnvName = getQueueTypeForEnv(queueName)
+    return parsePositiveInteger(
+        process.env[queueSpecificEnvName] ||
+            (queueTypeEnvName ? process.env[`${queueTypeEnvName}_WORKER_CONCURRENCY`] : undefined) ||
+            process.env.WORKER_CONCURRENCY,
+        DEFAULT_WORKER_CONCURRENCY
+    )
+}
+
+const buildKeepJobs = (): KeepJobs | undefined => {
+    const removeOnAge = parseRetentionInteger(process.env.REMOVE_ON_AGE, DEFAULT_REMOVE_ON_AGE)
+    const removeOnCount = parseRetentionInteger(process.env.REMOVE_ON_COUNT, DEFAULT_REMOVE_ON_COUNT)
+
+    if (removeOnAge === -1 && removeOnCount === -1) return undefined
+
+    const keepJobObj: KeepJobs = {}
+    if (removeOnAge !== -1) {
+        keepJobObj.age = removeOnAge
+    }
+    if (removeOnCount !== -1) {
+        keepJobObj.count = removeOnCount
+    }
+    return keepJobObj
+}
 
 export abstract class BaseQueue {
     protected queue: Queue
@@ -37,26 +86,14 @@ export abstract class BaseQueue {
     public async addJob(jobData: any): Promise<Job> {
         const jobId = jobData.id || uuidv4()
 
-        let removeOnFail: number | boolean | KeepJobs | undefined = true
-        let removeOnComplete: number | boolean | KeepJobs | undefined = undefined
-
-        // Only override removal options if age or count is specified
-        if (REMOVE_ON_AGE !== -1 || REMOVE_ON_COUNT !== -1) {
-            const keepJobObj: KeepJobs = {}
-            if (REMOVE_ON_AGE !== -1) {
-                keepJobObj.age = REMOVE_ON_AGE
-            }
-            if (REMOVE_ON_COUNT !== -1) {
-                keepJobObj.count = REMOVE_ON_COUNT
-            }
-            removeOnFail = keepJobObj
-            removeOnComplete = keepJobObj
-        }
+        const keepJobs = buildKeepJobs()
+        const removeOnFail: number | boolean | KeepJobs | undefined = keepJobs || true
+        const removeOnComplete: number | boolean | KeepJobs | undefined = keepJobs
 
         return await this.queue.add(jobId, jobData, { removeOnFail, removeOnComplete })
     }
 
-    public createWorker(concurrency: number = WORKER_CONCURRENCY): Worker {
+    public createWorker(concurrency: number = getWorkerConcurrency(this.queue.name)): Worker {
         try {
             this.worker = new Worker(
                 this.queue.name,

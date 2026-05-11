@@ -1,10 +1,19 @@
 import { ChatOpenAI as LangchainChatOpenAI, ChatOpenAIFields } from '@langchain/openai'
 import { BaseCache } from '@langchain/core/caches'
+import { createHash } from 'crypto'
 import { ICommonObject, IMultiModalOption, INode, INodeData, INodeOptionsValue, INodeParams } from '../../../src/Interface'
 import { getBaseClasses, getCredentialData, getCredentialParam, isReasoningModelOpenAI } from '../../../src/utils'
 import { ChatOpenAI } from './FlowiseChatOpenAI'
 import { getModels, MODEL_TYPE } from '../../../src/modelLoader'
 import { OpenAI as OpenAIClient } from 'openai'
+
+const getPromptCacheKey = (explicitKey: string | undefined, chatflowid: string | undefined, nodeId: string, modelName: string): string => {
+    const trimmedExplicitKey = explicitKey?.trim()
+    if (trimmedExplicitKey) return trimmedExplicitKey
+
+    const rawKey = ['flowise', chatflowid || 'unknown-chatflow', nodeId || 'unknown-node', modelName || 'unknown-model'].join(':')
+    return `flowise-${createHash('sha256').update(rawKey).digest('hex').slice(0, 32)}`
+}
 
 class ChatOpenAI_ChatModels implements INode {
     label: string
@@ -21,7 +30,7 @@ class ChatOpenAI_ChatModels implements INode {
     constructor() {
         this.label = 'OpenAI'
         this.name = 'chatOpenAI'
-        this.version = 8.3
+        this.version = 8.4
         this.type = 'ChatOpenAI'
         this.icon = 'openai.svg'
         this.category = 'Chat Models'
@@ -207,6 +216,28 @@ class ChatOpenAI_ChatModels implements INode {
                 optional: true,
                 description: 'Default headers to include with every request to the API.',
                 additionalParams: true
+            },
+            {
+                label: 'Enable Provider Prompt Cache Key',
+                name: 'enablePromptCacheKey',
+                type: 'boolean',
+                default: true,
+                optional: true,
+                description:
+                    'Send a stable prompt_cache_key to OpenAI to improve provider-side prompt cache locality for repeated long prompts. Custom Base Path providers only receive this when Prompt Cache Key is explicitly set.',
+                additionalParams: true
+            },
+            {
+                label: 'Prompt Cache Key',
+                name: 'promptCacheKey',
+                type: 'string',
+                optional: true,
+                description:
+                    'Optional explicit OpenAI prompt_cache_key. Leave empty to derive a non-PII key from chatflow, node, and model.',
+                additionalParams: true,
+                show: {
+                    enablePromptCacheKey: true
+                }
             }
         ]
     }
@@ -234,6 +265,8 @@ class ChatOpenAI_ChatModels implements INode {
         const reasoningEffort = nodeData.inputs?.reasoningEffort as OpenAIClient.ReasoningEffort | null
         const reasoningSummary = nodeData.inputs?.reasoningSummary as 'auto' | 'concise' | 'detailed' | null
         const allowImageUploads = nodeData.inputs?.allowImageUploads as boolean
+        const enablePromptCacheKey = nodeData.inputs?.enablePromptCacheKey as boolean
+        const promptCacheKey = nodeData.inputs?.promptCacheKey as string | undefined
 
         if (nodeData.inputs?.credentialId) {
             nodeData.credential = nodeData.inputs?.credentialId
@@ -257,6 +290,10 @@ class ChatOpenAI_ChatModels implements INode {
         if (presencePenalty) obj.presencePenalty = parseFloat(presencePenalty)
         if (timeout) obj.timeout = parseInt(timeout, 10)
         if (cache) obj.cache = cache
+        const hasExplicitPromptCacheKey = !!promptCacheKey?.trim()
+        if (enablePromptCacheKey !== false && (!basePath || hasExplicitPromptCacheKey)) {
+            obj.promptCacheKey = getPromptCacheKey(promptCacheKey, options.chatflowid, nodeData.id, modelName)
+        }
         if (stopSequence) {
             const stopSequenceArray = stopSequence.split(',').map((item) => item.trim())
             obj.stop = stopSequenceArray

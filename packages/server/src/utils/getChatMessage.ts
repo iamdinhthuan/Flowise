@@ -100,7 +100,7 @@ export const utilGetChatMessage = async ({
         }
     }
 
-    const messages = await appServer.AppDataSource.getRepository(ChatMessage).find({
+    const findOptions: any = {
         where: {
             chatflowid,
             chatType: chatTypes?.length ? In(chatTypes) : undefined,
@@ -116,7 +116,14 @@ export const utilGetChatMessage = async ({
         order: {
             createdDate: sortOrder === 'DESC' ? 'DESC' : 'ASC'
         }
-    })
+    }
+
+    if (page > 0 && pageSize > 0) {
+        findOptions.skip = pageSize * (page - 1)
+        findOptions.take = pageSize
+    }
+
+    const messages = await appServer.AppDataSource.getRepository(ChatMessage).find(findOptions)
 
     return messages
 }

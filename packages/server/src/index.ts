@@ -13,6 +13,7 @@ import { getDataSource } from './DataSource'
 import { Organization } from './enterprise/database/entities/organization.entity'
 import { Workspace } from './enterprise/database/entities/workspace.entity'
 import { LoggedInUser } from './enterprise/Interface.Enterprise'
+import { getOrCreateOpenSourceUser } from './utils/openSourceAuth'
 import { initializeJwtCookieMiddleware, verifyToken, verifyTokenForBullMQDashboard } from './enterprise/middleware/passport'
 import { initAuthSecrets } from './enterprise/utils/authSecrets'
 import { IdentityManager } from './IdentityManager'
@@ -62,6 +63,7 @@ declare global {
 
 export class App {
     app: express.Application
+    server?: http.Server
     nodesPool: NodesPool
     abortControllerPool: AbortControllerPool
     cachePool: CachePool
@@ -143,8 +145,11 @@ export class App {
                 this.telemetry = new Telemetry()
                 logger.info('📈 [server]: Telemetry initialized successfully')
             } else {
-                // Create a no-op telemetry so code referencing it doesn't break
-                this.telemetry = { sendTelemetry: async () => {}, flush: async () => {} } as any
+                // Telemetry without POSTHOG_PUBLIC_API_KEY is already a no-op — no type hacks needed
+                const savedKey = process.env.POSTHOG_PUBLIC_API_KEY
+                delete process.env.POSTHOG_PUBLIC_API_KEY
+                this.telemetry = new Telemetry()
+                if (savedKey) process.env.POSTHOG_PUBLIC_API_KEY = savedKey
                 logger.info('📈 [server]: Telemetry disabled (LITE_MODE)')
             }
 
@@ -196,17 +201,43 @@ export class App {
     async config() {
         // Limit is needed to allow sending/receiving base64 encoded string
         const flowise_file_size_limit = process.env.FLOWISE_FILE_SIZE_LIMIT || '50mb'
+        const default_body_size_limit = process.env.FLOWISE_DEFAULT_BODY_SIZE_LIMIT || '5mb'
+        const largeBodyRoutePrefixes = [
+            '/api/v1/prediction/',
+            '/api/v1/internal-prediction/',
+            '/api/v1/webhook/',
+            '/api/v1/chatflows-uploads',
+            '/api/v1/vector/',
+            '/api/v1/attachments',
+            '/api/v1/document-store',
+            '/api/v1/openai-assistants-file'
+        ]
+        const useLargeBodyParser = (req: Request): boolean => largeBodyRoutePrefixes.some((prefix) => req.path.startsWith(prefix))
 
         // Preserve raw bytes before JSON parsing for webhook HMAC signature verification
         const captureRawBody = (req: Request, _res: Response, buf: Buffer) => {
-            ;(req as any).rawBody = buf
+            if (req.path.startsWith('/api/v1/webhook/')) {
+                ;(req as any).rawBody = buf
+            }
         }
-        this.app.use(express.json({ limit: flowise_file_size_limit, verify: captureRawBody }))
-        this.app.use(express.urlencoded({ limit: flowise_file_size_limit, extended: true, verify: captureRawBody }))
+        const defaultJsonParser = express.json({ limit: default_body_size_limit, verify: captureRawBody })
+        const largeJsonParser = express.json({ limit: flowise_file_size_limit, verify: captureRawBody })
+        const defaultUrlencodedParser = express.urlencoded({
+            limit: default_body_size_limit,
+            extended: true,
+            verify: captureRawBody
+        })
+        const largeUrlencodedParser = express.urlencoded({
+            limit: flowise_file_size_limit,
+            extended: true,
+            verify: captureRawBody
+        })
+        this.app.use((req, res, next) => (useLargeBodyParser(req) ? largeJsonParser : defaultJsonParser)(req, res, next))
+        this.app.use((req, res, next) => (useLargeBodyParser(req) ? largeUrlencodedParser : defaultUrlencodedParser)(req, res, next))
 
         // Enhanced trust proxy settings for load balancer
         let trustProxy: string | boolean | number | undefined = process.env.TRUST_PROXY
-        if (typeof trustProxy === 'undefined' || trustProxy.trim() === '' || trustProxy === 'true') {
+        if (typeof trustProxy === 'undefined' || (typeof trustProxy === 'string' && trustProxy.trim() === '') || trustProxy === 'true') {
             // Default to trust all proxies
             trustProxy = true
         } else if (trustProxy === 'false') {
@@ -244,6 +275,35 @@ export class App {
         // Add the sanitizeMiddleware to guard against XSS
         this.app.use(sanitizeMiddleware)
 
+        this.app.get('/api/v1/livez', (_req: Request, res: Response) => {
+            return res.status(200).json({ status: 'live' })
+        })
+
+        this.app.get('/api/v1/readyz', async (_req: Request, res: Response) => {
+            const checks: Record<string, boolean> = {
+                app: true,
+                database: this.AppDataSource.isInitialized,
+                nodesPool: !!this.nodesPool?.componentNodes,
+                cachePool: !!this.cachePool,
+                sseStreamer: !!this.sseStreamer
+            }
+
+            if (checks.database) {
+                try {
+                    await this.AppDataSource.query('SELECT 1')
+                } catch (error) {
+                    checks.database = false
+                    logger.warn('Readiness database check failed', { error })
+                }
+            }
+
+            const isReady = Object.values(checks).every(Boolean)
+            return res.status(isReady ? 200 : 503).json({
+                status: isReady ? 'ready' : 'not_ready',
+                checks
+            })
+        })
+
         const denylistURLs = process.env.DENYLIST_URLS ? process.env.DENYLIST_URLS.split(',') : []
         const whitelistURLs = WHITELIST_URLS.filter((url) => !denylistURLs.includes(url))
         const URL_CASE_INSENSITIVE_REGEX: RegExp = /\/api\/v1\//i
@@ -263,77 +323,9 @@ export class App {
                     } else if (req.headers['x-request-from'] === 'internal') {
                         // Open Source: skip auth entirely, inject default user
                         if (this.identityManager.isOpenSource()) {
-                            // Use cached user if available (avoid DB query on every request)
-                            if ((this as any)._cachedOpenSourceUser) {
-                                // @ts-ignore
-                                req.user = (this as any)._cachedOpenSourceUser
-                                next()
-                                return
-                            }
                             try {
-                                let ws = await this.AppDataSource.getRepository(Workspace).findOne({ where: {} })
-                                // If no workspace exists, bootstrap org + workspace directly (no account needed)
-                                if (!ws) {
-                                    const dummyId = '00000000-0000-0000-0000-000000000000'
-                                    // Disable FK checks for bootstrap (dummy createdBy/updatedBy)
-                                    const isSQLite = !process.env.DATABASE_TYPE || process.env.DATABASE_TYPE === 'sqlite'
-                                    try {
-                                        if (isSQLite) {
-                                            await this.AppDataSource.query('PRAGMA foreign_keys = OFF')
-                                        } else {
-                                            await this.AppDataSource.query('SET session_replication_role = replica')
-                                        }
-                                    } catch (_) {}
-                                    const orgRepo = this.AppDataSource.getRepository(Organization)
-                                    let org = await orgRepo.findOne({ where: {} })
-                                    if (!org) {
-                                        org = orgRepo.create({
-                                            name: 'Default Organization',
-                                            createdBy: dummyId,
-                                            updatedBy: dummyId
-                                        })
-                                        await orgRepo.save(org)
-                                        logger.info(`🏢 [server]: Default Organization created: ${org.id}`)
-                                    }
-                                    const wsRepo = this.AppDataSource.getRepository(Workspace)
-                                    ws = wsRepo.create({
-                                        name: 'Default Workspace',
-                                        organizationId: org.id,
-                                        createdBy: dummyId,
-                                        updatedBy: dummyId
-                                    })
-                                    await wsRepo.save(ws)
-                                    logger.info(`📁 [server]: Default Workspace created: ${ws.id}`)
-                                    // Re-enable FK checks
-                                    try {
-                                        if (isSQLite) {
-                                            await this.AppDataSource.query('PRAGMA foreign_keys = ON')
-                                        } else {
-                                            await this.AppDataSource.query('SET session_replication_role = DEFAULT')
-                                        }
-                                    } catch (_) {}
-                                }
-                                if (ws) {
-                                    const org = await this.AppDataSource.getRepository(Organization).findOne({
-                                        where: { id: ws.organizationId }
-                                    })
-                                    const cachedUser = {
-                                        id: '',
-                                        permissions: [],
-                                        features: {},
-                                        activeOrganizationId: org?.id || '',
-                                        activeOrganizationSubscriptionId: '',
-                                        activeOrganizationCustomerId: '',
-                                        activeOrganizationProductId: '',
-                                        isOrganizationAdmin: true,
-                                        activeWorkspaceId: ws.id,
-                                        activeWorkspace: ws.name
-                                    }
-                                    // Cache for subsequent requests
-                                    ;(this as any)._cachedOpenSourceUser = cachedUser
-                                    // @ts-ignore
-                                    req.user = cachedUser
-                                }
+                                const osUser = await getOrCreateOpenSourceUser(this.AppDataSource)
+                                req.user = osUser as LoggedInUser
                             } catch (e) {
                                 logger.error(`❌ [server]: Open Source bootstrap error: ${e}`)
                             }
@@ -461,10 +453,25 @@ export class App {
         const uiBuildPath = path.join(packagePath, 'build')
         const uiHtmlPath = path.join(packagePath, 'build', 'index.html')
 
-        this.app.use('/', express.static(uiBuildPath))
+        this.app.use(
+            '/',
+            express.static(uiBuildPath, {
+                etag: true,
+                setHeaders: (res, filePath) => {
+                    if (path.basename(filePath) === 'index.html') {
+                        res.setHeader('Cache-Control', 'no-cache')
+                    } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+                        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+                    } else {
+                        res.setHeader('Cache-Control', 'public, max-age=3600')
+                    }
+                }
+            })
+        )
 
         // All other requests not handled will return React app
         this.app.use((req: Request, res: Response) => {
+            res.setHeader('Cache-Control', 'no-cache')
             res.sendFile(uiHtmlPath)
         })
 
@@ -474,13 +481,31 @@ export class App {
 
     async stopApp() {
         try {
-            this.sseStreamer.stopHeartbeat()
+            this.sseStreamer?.stopHeartbeat()
             const removePromises: any[] = []
-            removePromises.push(this.telemetry.flush())
-            if (this.queueManager) {
+            if (this.telemetry) {
+                removePromises.push(this.telemetry.flush())
+            }
+            if (this.queueManager && this.redisSubscriber) {
                 removePromises.push(this.redisSubscriber.disconnect())
             }
+            if (this.cachePool) {
+                removePromises.push(this.cachePool.close())
+            }
+            if (this.server?.listening) {
+                removePromises.push(
+                    new Promise<void>((resolve, reject) => {
+                        this.server?.close((error) => {
+                            if (error) return reject(error)
+                            resolve()
+                        })
+                    })
+                )
+            }
             await Promise.all(removePromises)
+            if (this.AppDataSource?.isInitialized) {
+                await this.AppDataSource.destroy()
+            }
         } catch (e) {
             logger.error(`❌[server]: Flowise Server shut down error: ${e}`)
         }
@@ -495,6 +520,7 @@ export async function start(): Promise<void> {
     const host = process.env.HOST
     const port = parseInt(process.env.PORT || '', 10) || 3000
     const server = http.createServer(serverApp.app)
+    serverApp.server = server
 
     await serverApp.initDatabase()
     await serverApp.config()

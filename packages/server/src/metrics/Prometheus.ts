@@ -3,6 +3,17 @@ import express from 'express'
 import promClient, { Counter, Histogram, Registry } from 'prom-client'
 import { getVersion } from 'flowise-components'
 
+const normalizeRequestPath = (req: express.Request): string => {
+    const routePath = req.route?.path
+    if (routePath) {
+        return `${req.baseUrl}${routePath === '/' ? '' : routePath}`
+    }
+
+    return req.path
+        .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi, ':id')
+        .replace(/\/\d+(?=\/|$)/g, '/:id')
+}
+
 export class Prometheus implements IMetricsProvider {
     private app: express.Application
     private readonly register: Registry
@@ -80,7 +91,7 @@ export class Prometheus implements IMetricsProvider {
                 name: 'http_request_duration_ms',
                 help: 'Duration of HTTP requests in ms',
                 labelNames: ['method', 'route', 'code'],
-                buckets: [1, 5, 15, 50, 100, 200, 300, 400, 500], // buckets for response time from 0.1ms to 500ms
+                buckets: [1, 5, 15, 50, 100, 200, 300, 400, 500, 1000, 2500, 5000, 10000],
                 registers: [this.register] // Explicitly set the registry
             })
             this.counters.set('http_request_duration_ms', this.httpRequestDurationMicroseconds)
@@ -133,11 +144,11 @@ export class Prometheus implements IMetricsProvider {
         this.app.use((req, res, next) => {
             res.on('finish', async () => {
                 if (res.locals.startEpoch) {
-                    this.requestCounter.inc()
                     const responseTimeInMs = Date.now() - res.locals.startEpoch
-                    this.httpRequestDurationMicroseconds
-                        .labels(req.method, req.baseUrl, res.statusCode.toString())
-                        .observe(responseTimeInMs)
+                    const route = normalizeRequestPath(req)
+                    const statusCode = res.statusCode.toString()
+                    this.requestCounter.labels(req.method, route, statusCode).inc()
+                    this.httpRequestDurationMicroseconds.labels(req.method, route, statusCode).observe(responseTimeInMs)
                 }
             })
             next()

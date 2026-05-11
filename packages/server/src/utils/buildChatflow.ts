@@ -993,9 +993,13 @@ export const utilBuildChatflow = async (req: Request, isInternal: boolean = fals
     const chatflowid = req.params.id
 
     // Check if chatflow exists
-    const chatflow = await appServer.AppDataSource.getRepository(ChatFlow).findOneBy({
-        id: chatflowid
-    })
+    const requestChatflow = (req as any).chatflow as ChatFlow | undefined
+    const chatflow =
+        requestChatflow?.id === chatflowid
+            ? requestChatflow
+            : await appServer.AppDataSource.getRepository(ChatFlow).findOneBy({
+                  id: chatflowid
+              })
     if (!chatflow) {
         throw new InternalFlowiseError(StatusCodes.NOT_FOUND, `Chatflow ${chatflowid} not found`)
     }

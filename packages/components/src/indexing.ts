@@ -172,6 +172,11 @@ export type IndexOptions = {
     vectorStoreName?: string
 }
 
+const getPositiveEnvInt = (name: string): number | undefined => {
+    const value = parseInt(process.env[name] || '')
+    return Number.isFinite(value) && value > 0 ? value : undefined
+}
+
 export function _batch<T>(size: number, iterable: T[]): T[][] {
     const batches: T[][] = []
     let currentBatch: T[] = []
@@ -262,117 +267,137 @@ export async function index(args: IndexArgs): Promise<IndexingResult> {
         throw new Error("sourceIdKey is required when cleanup mode is incremental. Please provide through 'options.sourceIdKey'.")
     }
 
-    if (vectorStoreName) {
-        ;(recordManager as any).namespace = (recordManager as any).namespace + '_' + vectorStoreName
+    const originalNamespace = (recordManager as any).namespace
+    const shouldRestoreNamespace = !!vectorStoreName && typeof originalNamespace === 'string'
+    if (shouldRestoreNamespace) {
+        ;(recordManager as any).namespace = `${originalNamespace}_${vectorStoreName}`
     }
 
-    const docs = _isBaseDocumentLoader(docsSource) ? await docsSource.load() : docsSource
-
-    const sourceIdAssigner = _getSourceIdAssigner(sourceIdKey ?? null)
-
-    const indexStartDt = await recordManager.getTime()
-    let numAdded = 0
-    let addedDocs: Document[] = []
-    let numDeleted = 0
-    let numUpdated = 0
-    let numSkipped = 0
-    let totalKeys = 0
-
-    const batches = _batch<DocumentInterface>(batchSize ?? 100, docs)
-
-    for (const batch of batches) {
-        const hashedDocs = _deduplicateInOrder(batch.map((doc) => _HashedDocument.fromDocument(doc)))
-
-        const sourceIds = hashedDocs.map((doc) => sourceIdAssigner(doc))
-
-        if (cleanup === 'incremental') {
-            hashedDocs.forEach((_hashedDoc, index) => {
-                const source = sourceIds[index]
-                if (source === null) {
-                    throw new Error('sourceIdKey must be provided when cleanup is incremental')
-                }
-            })
+    try {
+        const docs = _isBaseDocumentLoader(docsSource) ? await docsSource.load() : docsSource
+        const maxDocuments = getPositiveEnvInt('FLOWISE_MAX_INDEXING_DOCUMENTS')
+        if (maxDocuments && docs.length > maxDocuments) {
+            throw new Error(`Indexing aborted: ${docs.length} documents exceeds FLOWISE_MAX_INDEXING_DOCUMENTS=${maxDocuments}`)
         }
 
-        const batchExists = await recordManager.exists(hashedDocs.map((doc) => doc.uid))
-
-        const uids: string[] = []
-        const docsToIndex: DocumentInterface[] = []
-        const docsToUpdate: Array<{ uid: string; docId: string }> = []
-        const seenDocs = new Set<string>()
-        hashedDocs.forEach((hashedDoc, i) => {
-            const docExists = batchExists[i]
-            if (docExists) {
-                if (forceUpdate) {
-                    seenDocs.add(hashedDoc.uid)
-                } else {
-                    docsToUpdate.push({ uid: hashedDoc.uid, docId: hashedDoc.metadata.docId as string })
-                    return
-                }
+        const maxCharacters = getPositiveEnvInt('FLOWISE_MAX_INDEXING_CHARACTERS')
+        if (maxCharacters) {
+            const totalCharacters = docs.reduce((sum, doc) => sum + (doc.pageContent?.length || 0), 0)
+            if (totalCharacters > maxCharacters) {
+                throw new Error(`Indexing aborted: ${totalCharacters} characters exceeds FLOWISE_MAX_INDEXING_CHARACTERS=${maxCharacters}`)
             }
-            uids.push(hashedDoc.uid)
-            docsToIndex.push(hashedDoc.toDocument())
-        })
-
-        if (docsToUpdate.length > 0) {
-            await recordManager.update(docsToUpdate, { timeAtLeast: indexStartDt })
-            numSkipped += docsToUpdate.length
         }
 
-        if (docsToIndex.length > 0) {
-            await vectorStore.addDocuments(docsToIndex, { ids: uids })
-            const newDocs = docsToIndex.map((docs) => ({
-                pageContent: docs.pageContent,
-                metadata: docs.metadata
-            }))
-            addedDocs.push(...newDocs)
-            numAdded += docsToIndex.length - seenDocs.size
-            numUpdated += seenDocs.size
-        }
+        const sourceIdAssigner = _getSourceIdAssigner(sourceIdKey ?? null)
 
-        await recordManager.update(
-            hashedDocs.map((doc) => ({ uid: doc.uid, docId: doc.metadata.docId as string })),
-            { timeAtLeast: indexStartDt, groupIds: sourceIds }
-        )
+        const indexStartDt = await recordManager.getTime()
+        let numAdded = 0
+        let addedDocs: Document[] = []
+        let numDeleted = 0
+        let numUpdated = 0
+        let numSkipped = 0
+        let totalKeys = 0
 
-        if (cleanup === 'incremental') {
-            sourceIds.forEach((sourceId) => {
-                if (!sourceId) throw new Error('Source id cannot be null')
+        const batches = _batch<DocumentInterface>(batchSize ?? 100, docs)
+
+        for (const batch of batches) {
+            const hashedDocs = _deduplicateInOrder(batch.map((doc) => _HashedDocument.fromDocument(doc)))
+
+            const sourceIds = hashedDocs.map((doc) => sourceIdAssigner(doc))
+
+            if (cleanup === 'incremental') {
+                hashedDocs.forEach((_hashedDoc, index) => {
+                    const source = sourceIds[index]
+                    if (source === null) {
+                        throw new Error('sourceIdKey must be provided when cleanup is incremental')
+                    }
+                })
+            }
+
+            const batchExists = await recordManager.exists(hashedDocs.map((doc) => doc.uid))
+
+            const uids: string[] = []
+            const docsToIndex: DocumentInterface[] = []
+            const docsToUpdate: Array<{ uid: string; docId: string }> = []
+            const seenDocs = new Set<string>()
+            hashedDocs.forEach((hashedDoc, i) => {
+                const docExists = batchExists[i]
+                if (docExists) {
+                    if (forceUpdate) {
+                        seenDocs.add(hashedDoc.uid)
+                    } else {
+                        docsToUpdate.push({ uid: hashedDoc.uid, docId: hashedDoc.metadata.docId as string })
+                        return
+                    }
+                }
+                uids.push(hashedDoc.uid)
+                docsToIndex.push(hashedDoc.toDocument())
             })
-            const uidsToDelete = await recordManager.listKeys({
-                before: indexStartDt,
-                groupIds: sourceIds
-            })
-            await vectorStore.delete({ ids: uidsToDelete })
-            await recordManager.deleteKeys(uidsToDelete)
-            numDeleted += uidsToDelete.length
-        }
-    }
 
-    if (cleanup === 'full') {
-        let uidsToDelete = await recordManager.listKeys({
-            before: indexStartDt,
-            limit: cleanupBatchSize
-        })
-        while (uidsToDelete.length > 0) {
-            await vectorStore.delete({ ids: uidsToDelete })
-            await recordManager.deleteKeys(uidsToDelete)
-            numDeleted += uidsToDelete.length
-            uidsToDelete = await recordManager.listKeys({
+            if (docsToUpdate.length > 0) {
+                await recordManager.update(docsToUpdate, { timeAtLeast: indexStartDt })
+                numSkipped += docsToUpdate.length
+            }
+
+            if (docsToIndex.length > 0) {
+                await vectorStore.addDocuments(docsToIndex, { ids: uids })
+                const newDocs = docsToIndex.map((docs) => ({
+                    pageContent: docs.pageContent,
+                    metadata: docs.metadata
+                }))
+                addedDocs.push(...newDocs)
+                numAdded += docsToIndex.length - seenDocs.size
+                numUpdated += seenDocs.size
+            }
+
+            await recordManager.update(
+                hashedDocs.map((doc) => ({ uid: doc.uid, docId: doc.metadata.docId as string })),
+                { timeAtLeast: indexStartDt, groupIds: sourceIds }
+            )
+
+            if (cleanup === 'incremental') {
+                sourceIds.forEach((sourceId) => {
+                    if (!sourceId) throw new Error('Source id cannot be null')
+                })
+                const uidsToDelete = await recordManager.listKeys({
+                    before: indexStartDt,
+                    groupIds: sourceIds
+                })
+                await vectorStore.delete({ ids: uidsToDelete })
+                await recordManager.deleteKeys(uidsToDelete)
+                numDeleted += uidsToDelete.length
+            }
+        }
+
+        if (cleanup === 'full') {
+            let uidsToDelete = await recordManager.listKeys({
                 before: indexStartDt,
                 limit: cleanupBatchSize
             })
+            while (uidsToDelete.length > 0) {
+                await vectorStore.delete({ ids: uidsToDelete })
+                await recordManager.deleteKeys(uidsToDelete)
+                numDeleted += uidsToDelete.length
+                uidsToDelete = await recordManager.listKeys({
+                    before: indexStartDt,
+                    limit: cleanupBatchSize
+                })
+            }
         }
-    }
 
-    totalKeys = (await recordManager.listKeys({})).length
+        totalKeys = (await recordManager.listKeys({})).length
 
-    return {
-        numAdded,
-        numDeleted,
-        numUpdated,
-        numSkipped,
-        totalKeys,
-        addedDocs
+        return {
+            numAdded,
+            numDeleted,
+            numUpdated,
+            numSkipped,
+            totalKeys,
+            addedDocs
+        }
+    } finally {
+        if (shouldRestoreNamespace) {
+            ;(recordManager as any).namespace = originalNamespace
+        }
     }
 }

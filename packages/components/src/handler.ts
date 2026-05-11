@@ -745,7 +745,7 @@ export class AnalyticHandler {
         providerName: string,
         returnIds: ICommonObject,
         outputText: string,
-        usageMetadata?: { input_tokens?: number; output_tokens?: number; total_tokens?: number },
+        usageMetadata?: ICommonObject,
         modelName?: string
     ): void {
         const llmSpan: Span | undefined = this.handlers[providerName]?.llmSpan?.[returnIds[providerName]?.llmSpan]
@@ -761,6 +761,12 @@ export class AnalyticHandler {
                 }
                 if (usageMetadata.total_tokens !== undefined) {
                     llmSpan.setAttribute('llm.token_count.total', usageMetadata.total_tokens)
+                }
+                if (usageMetadata.input_token_details?.cache_read !== undefined) {
+                    llmSpan.setAttribute('llm.token_count.prompt_cache_read', usageMetadata.input_token_details.cache_read)
+                }
+                if (usageMetadata.input_token_details?.cache_creation !== undefined) {
+                    llmSpan.setAttribute('llm.token_count.prompt_cache_creation', usageMetadata.input_token_details.cache_creation)
                 }
             }
             if (modelName) {
@@ -1476,11 +1482,29 @@ export class AnalyticHandler {
             // Extract usage metadata (supports both LangChain and OpenAI field names)
             usageMetadata = output.usageMetadata ?? output.usage_metadata
             if (usageMetadata) {
+                const inputTokenDetails = usageMetadata.input_token_details ?? usageMetadata.prompt_tokens_details
+                const cacheRead =
+                    inputTokenDetails?.cache_read ??
+                    inputTokenDetails?.cached_tokens ??
+                    usageMetadata.cache_read_input_tokens ??
+                    usageMetadata.cacheReadInputTokens
+                const cacheCreation =
+                    inputTokenDetails?.cache_creation ??
+                    inputTokenDetails?.cache_creation_input_tokens ??
+                    usageMetadata.cache_creation_input_tokens ??
+                    usageMetadata.cacheCreationInputTokens
+
                 // Normalize field names for consistent access
                 usageMetadata = {
                     input_tokens: usageMetadata.input_tokens ?? usageMetadata.prompt_tokens,
                     output_tokens: usageMetadata.output_tokens ?? usageMetadata.completion_tokens,
                     total_tokens: usageMetadata.total_tokens
+                }
+                if (cacheRead !== undefined || cacheCreation !== undefined) {
+                    usageMetadata.input_token_details = {
+                        ...(cacheRead !== undefined ? { cache_read: cacheRead } : {}),
+                        ...(cacheCreation !== undefined ? { cache_creation: cacheCreation } : {})
+                    }
                 }
             }
 
@@ -1511,7 +1535,8 @@ export class AnalyticHandler {
                         llmRun.extra.metadata.usage_metadata = {
                             input_tokens: usageMetadata.input_tokens,
                             output_tokens: usageMetadata.output_tokens,
-                            total_tokens: usageMetadata.total_tokens
+                            total_tokens: usageMetadata.total_tokens,
+                            ...(usageMetadata.input_token_details ? { input_token_details: usageMetadata.input_token_details } : {})
                         }
                     }
                     if (modelName) {
