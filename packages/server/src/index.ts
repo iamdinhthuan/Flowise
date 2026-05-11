@@ -32,6 +32,7 @@ import { UsageCacheManager } from './UsageCacheManager'
 import { getEncryptionKey, getNodeModulesPackagePath } from './utils'
 import { API_KEY_BLACKLIST_URLS, WHITELIST_URLS } from './utils/constants'
 import logger, { expressRequestLogger } from './utils/logger'
+import { isOpenSourceInternalHeaderBypassEnabled } from './utils/openSourceAuthMode'
 import { RateLimiterManager } from './utils/rateLimit'
 import { SSEStreamer } from './utils/SSEStreamer'
 import { Telemetry } from './utils/telemetry'
@@ -203,20 +204,21 @@ export class App {
         const flowise_file_size_limit = process.env.FLOWISE_FILE_SIZE_LIMIT || '50mb'
         const default_body_size_limit = process.env.FLOWISE_DEFAULT_BODY_SIZE_LIMIT || '5mb'
         const largeBodyRoutePrefixes = [
-            '/api/v1/prediction/',
-            '/api/v1/internal-prediction/',
-            '/api/v1/webhook/',
+            '/api/v1/prediction',
+            '/api/v1/internal-prediction',
+            '/api/v1/webhook',
             '/api/v1/chatflows-uploads',
-            '/api/v1/vector/',
+            '/api/v1/vector',
             '/api/v1/attachments',
             '/api/v1/document-store',
             '/api/v1/openai-assistants-file'
         ]
-        const useLargeBodyParser = (req: Request): boolean => largeBodyRoutePrefixes.some((prefix) => req.path.startsWith(prefix))
+        const useLargeBodyParser = (req: Request): boolean =>
+            largeBodyRoutePrefixes.some((prefix) => req.path === prefix || req.path.startsWith(`${prefix}/`))
 
         // Preserve raw bytes before JSON parsing for webhook HMAC signature verification
         const captureRawBody = (req: Request, _res: Response, buf: Buffer) => {
-            if (req.path.startsWith('/api/v1/webhook/')) {
+            if (req.path === '/api/v1/webhook' || req.path.startsWith('/api/v1/webhook/')) {
                 ;(req as any).rawBody = buf
             }
         }
@@ -235,17 +237,18 @@ export class App {
         this.app.use((req, res, next) => (useLargeBodyParser(req) ? largeJsonParser : defaultJsonParser)(req, res, next))
         this.app.use((req, res, next) => (useLargeBodyParser(req) ? largeUrlencodedParser : defaultUrlencodedParser)(req, res, next))
 
-        // Enhanced trust proxy settings for load balancer
-        let trustProxy: string | boolean | number | undefined = process.env.TRUST_PROXY
-        if (typeof trustProxy === 'undefined' || (typeof trustProxy === 'string' && trustProxy.trim() === '') || trustProxy === 'true') {
-            // Default to trust all proxies
+        // Trust proxy is security-sensitive because it controls req.ip and rate-limit identity.
+        // Default to false; production reverse-proxy deployments must opt in explicitly.
+        const trustProxyEnv = process.env.TRUST_PROXY?.trim()
+        let trustProxy: string | boolean | number = false
+        if (trustProxyEnv === 'true') {
             trustProxy = true
-        } else if (trustProxy === 'false') {
-            // Disable trust proxy
+        } else if (!trustProxyEnv || trustProxyEnv === 'false') {
             trustProxy = false
-        } else if (!isNaN(Number(trustProxy))) {
-            // Number: Trust specific number of proxies
-            trustProxy = Number(trustProxy)
+        } else if (!isNaN(Number(trustProxyEnv))) {
+            trustProxy = Number(trustProxyEnv)
+        } else {
+            trustProxy = trustProxyEnv
         }
 
         this.app.set('trust proxy', trustProxy)
@@ -297,6 +300,20 @@ export class App {
                 }
             }
 
+            if (process.env.MODE === MODE.QUEUE) {
+                checks.queueManager = !!this.queueManager
+                checks.queues = false
+                checks.redisSubscriber = !!this.redisSubscriber?.isReady()
+                if (this.queueManager) {
+                    try {
+                        await this.queueManager.getAllJobCounts()
+                        checks.queues = true
+                    } catch (error) {
+                        logger.warn('Readiness queue check failed', { error })
+                    }
+                }
+            }
+
             const isReady = Object.values(checks).every(Boolean)
             return res.status(isReady ? 200 : 503).json({
                 status: isReady ? 'ready' : 'not_ready',
@@ -321,8 +338,9 @@ export class App {
                     if (isWhitelisted) {
                         next()
                     } else if (req.headers['x-request-from'] === 'internal') {
-                        // Open Source: skip auth entirely, inject default user
-                        if (this.identityManager.isOpenSource()) {
+                        // Open Source auth is enabled by default in production. The legacy
+                        // header-only bypass is only available when explicitly configured.
+                        if (this.identityManager.isOpenSource() && isOpenSourceInternalHeaderBypassEnabled()) {
                             try {
                                 const osUser = await getOrCreateOpenSourceUser(this.AppDataSource)
                                 req.user = osUser as LoggedInUser

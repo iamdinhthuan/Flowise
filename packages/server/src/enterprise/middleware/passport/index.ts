@@ -11,6 +11,7 @@ import { InternalFlowiseError } from '../../../errors/internalFlowiseError'
 import { IdentityManager } from '../../../IdentityManager'
 import { Platform } from '../../../Interface'
 import { getRunningExpressApp } from '../../../utils/getRunningExpressApp'
+import { isOpenSourceAuthEnabled } from '../../../utils/openSourceAuthMode'
 import { OrganizationUserStatus } from '../../database/entities/organization-user.entity'
 import { GeneralRole } from '../../database/entities/role.entity'
 import { WorkspaceUser, WorkspaceUserStatus } from '../../database/entities/workspace-user.entity'
@@ -39,11 +40,11 @@ const expireAuthTokensOnRestart = process.env.EXPIRE_AUTH_TOKENS_ON_RESTART === 
 // This is useful when running behind a reverse proxy/load balancer that terminates SSL
 // In production, always enforce secure cookies to prevent clear-text transmission of session data.
 const secureCookie =
-    process.env.NODE_ENV === 'production'
-        ? true
-        : process.env.SECURE_COOKIES === 'false'
+    process.env.SECURE_COOKIES === 'false'
         ? false
         : process.env.SECURE_COOKIES === 'true'
+        ? true
+        : process.env.NODE_ENV === 'production'
         ? true
         : process.env.APP_URL?.startsWith('https')
         ? true
@@ -215,8 +216,11 @@ export const initializeJwtCookieMiddleware = async (app: express.Application, id
                         return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/license-expired' })
                     }
                     return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/organization-setup' })
+                case Platform.OPEN_SOURCE:
+                    return res.status(HttpStatusCode.Ok).json({
+                        redirectUrl: isOpenSourceAuthEnabled() ? '/organization-setup' : '/'
+                    })
                 default:
-                    // Open Source: no account needed, middleware handles workspace bootstrap
                     return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/' })
             }
         }
@@ -226,6 +230,10 @@ export const initializeJwtCookieMiddleware = async (app: express.Application, id
                     return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/license-expired' })
                 }
                 return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/signin' })
+            case Platform.OPEN_SOURCE:
+                return res.status(HttpStatusCode.Ok).json({
+                    redirectUrl: isOpenSourceAuthEnabled() ? '/signin' : '/'
+                })
             default:
                 return res.status(HttpStatusCode.Ok).json({ redirectUrl: '/' })
         }

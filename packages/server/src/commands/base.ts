@@ -14,6 +14,11 @@ export abstract class BaseCommand extends Command {
     static flags = {
         // General Settings
         FLOWISE_FILE_SIZE_LIMIT: Flags.string(),
+        FLOWISE_DEFAULT_BODY_SIZE_LIMIT: Flags.string(),
+        CHATFLOW_CACHE_TTL_MS: Flags.string(),
+        CHATFLOW_CACHE_MAX_ENTRIES: Flags.string(),
+        CHAT_MESSAGE_DEFAULT_PAGE_SIZE: Flags.string(),
+        CHAT_MESSAGE_MAX_PAGE_SIZE: Flags.string(),
         CUSTOM_MCP_TOOLS_MAX_BYTES: Flags.string(),
         CUSTOM_MCP_AUTHORIZE_TIMEOUT_MS: Flags.string(),
         PORT: Flags.string(),
@@ -88,6 +93,7 @@ export abstract class BaseCommand extends Command {
         // Queue
         MODE: Flags.string(),
         WORKER_CONCURRENCY: Flags.string(),
+        QUEUE_MAX_WAITING_JOBS: Flags.string(),
         QUEUE_NAME: Flags.string(),
         QUEUE_REDIS_EVENT_STREAM_MAX_LEN: Flags.string(),
         REMOVE_ON_AGE: Flags.string(),
@@ -111,6 +117,8 @@ export abstract class BaseCommand extends Command {
         HTTP_SECURITY_CHECK: Flags.string(),
         PATH_TRAVERSAL_SAFETY: Flags.string(),
         TRUST_PROXY: Flags.string(),
+        FLOWISE_OPEN_SOURCE_AUTH_ENABLED: Flags.string(),
+        FLOWISE_ALLOW_UNSAFE_INTERNAL_HEADER: Flags.string(),
         OAUTH2_SECURITY_CHECK: Flags.string(),
         OAUTH2_ALLOWED_TOKEN_DOMAINS: Flags.string(),
 

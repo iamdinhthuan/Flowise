@@ -36,7 +36,7 @@ const createWebhook = async (req: Request, res: Response, next: NextFunction) =>
 
         const isResume = body?.humanInput != null
 
-        const { responseMode, callbackUrl, callbackSecret } = await webhookService.validateWebhookChatflow(
+        const { responseMode, callbackUrl, callbackSecret, chatflow } = await webhookService.validateWebhookChatflow(
             req.params.id,
             workspaceId,
             body,
@@ -46,6 +46,7 @@ const createWebhook = async (req: Request, res: Response, next: NextFunction) =>
             (req as any).rawBody,
             isResume ? { skipFieldValidation: true } : undefined
         )
+        ;(req as any).chatflow = chatflow
 
         // Namespace the webhook payload so $webhook.body.*, $webhook.headers.*, $webhook.query.* can coexist
         req.body = {
@@ -74,7 +75,7 @@ const createWebhook = async (req: Request, res: Response, next: NextFunction) =>
         if (responseMode === 'stream') {
             // Streaming mode: open an SSE channel and let downstream nodes push events through sseStreamer
             // Falls back to synchronous JSON if the chatflow has no streaming-capable end nodes
-            const streamable = await chatflowsService.checkIfChatflowIsValidForStreaming(req.params.id)
+            const streamable = await chatflowsService.checkIfChatflowIsValidForStreaming(req.params.id, chatflow)
             if (streamable?.isStreaming) {
                 const sseStreamer = getRunningExpressApp().sseStreamer
                 const chatId = executionChatId

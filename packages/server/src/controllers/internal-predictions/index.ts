@@ -16,6 +16,7 @@ const createInternalPrediction = async (req: Request, res: Response, next: NextF
         if (!chatflow) {
             throw new InternalFlowiseError(StatusCodes.NOT_FOUND, `Chatflow ${req.params.id} not found`)
         }
+        ;(req as any).chatflow = chatflow
 
         if (req.body.streaming || req.body.streaming === 'true') {
             createAndStreamInternalPrediction(req, res, next)

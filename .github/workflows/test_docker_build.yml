@@ -12,8 +12,32 @@ on:
 jobs:
     build:
         runs-on: ubuntu-latest
+        timeout-minutes: 45
         env:
             PUPPETEER_SKIP_DOWNLOAD: true
+            POSTGRES_PASSWORD: flowise_ci_password
+            POSTGRES_PORT: 55432
+            FLOWISE_PORT: 3100
         steps:
             - uses: actions/checkout@v6
-            - run: docker build --no-cache -t flowise .
+            - run: docker build --no-cache -t flowise-lite .
+            - name: Validate compose config
+              run: docker compose config
+            - name: Smoke test compose runtime
+              run: |
+                  docker compose -p flowise-ci-smoke up -d
+                  for i in $(seq 1 60); do
+                    if curl -fsS http://localhost:${FLOWISE_PORT}/api/v1/readyz; then
+                      break
+                    fi
+                    sleep 5
+                  done
+                  curl -fsS http://localhost:${FLOWISE_PORT}/api/v1/livez
+                  curl -fsS http://localhost:${FLOWISE_PORT}/api/v1/version
+                  curl -fsS http://localhost:${FLOWISE_PORT}/ >/tmp/flowise-index.html
+            - name: Dump compose logs
+              if: failure()
+              run: docker compose -p flowise-ci-smoke logs --no-color
+            - name: Cleanup compose runtime
+              if: always()
+              run: docker compose -p flowise-ci-smoke down -v

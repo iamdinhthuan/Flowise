@@ -8,6 +8,7 @@ const QUEUE_REDIS_EVENT_STREAM_MAX_LEN = process.env.QUEUE_REDIS_EVENT_STREAM_MA
 const DEFAULT_WORKER_CONCURRENCY = 5
 const DEFAULT_REMOVE_ON_AGE = 24 * 60 * 60
 const DEFAULT_REMOVE_ON_COUNT = 1000
+const DEFAULT_QUEUE_MAX_WAITING_JOBS = 1000
 
 const parsePositiveInteger = (value: string | undefined, fallback: number): number => {
     if (!value) return fallback
@@ -19,6 +20,12 @@ const parseRetentionInteger = (value: string | undefined, fallback: number): num
     if (!value) return fallback
     const parsedValue = parseInt(value)
     return Number.isFinite(parsedValue) ? parsedValue : fallback
+}
+
+const parseQueueLimitInteger = (value: string | undefined, fallback: number): number => {
+    if (!value) return fallback
+    const parsedValue = parseInt(value)
+    return Number.isFinite(parsedValue) && parsedValue >= -1 ? parsedValue : fallback
 }
 
 const normalizeQueueNameForEnv = (queueName: string): string => queueName.replace(/[^a-zA-Z0-9]/g, '_').toUpperCase()
@@ -39,6 +46,17 @@ const getWorkerConcurrency = (queueName: string): number => {
             (queueTypeEnvName ? process.env[`${queueTypeEnvName}_WORKER_CONCURRENCY`] : undefined) ||
             process.env.WORKER_CONCURRENCY,
         DEFAULT_WORKER_CONCURRENCY
+    )
+}
+
+const getQueueMaxWaitingJobs = (queueName: string): number => {
+    const queueSpecificEnvName = `${normalizeQueueNameForEnv(queueName)}_MAX_WAITING_JOBS`
+    const queueTypeEnvName = getQueueTypeForEnv(queueName)
+    return parseQueueLimitInteger(
+        process.env[queueSpecificEnvName] ||
+            (queueTypeEnvName ? process.env[`${queueTypeEnvName}_QUEUE_MAX_WAITING_JOBS`] : undefined) ||
+            process.env.QUEUE_MAX_WAITING_JOBS,
+        DEFAULT_QUEUE_MAX_WAITING_JOBS
     )
 }
 
@@ -85,6 +103,15 @@ export abstract class BaseQueue {
 
     public async addJob(jobData: any): Promise<Job> {
         const jobId = jobData.id || uuidv4()
+        const maxWaitingJobs = getQueueMaxWaitingJobs(this.queue.name)
+        if (maxWaitingJobs !== -1) {
+            const counts = await this.queue.getJobCounts()
+            const waitingJobs =
+                (counts.waiting || 0) + (counts.delayed || 0) + (counts.prioritized || 0) + (counts.paused || 0) + (counts['waiting-children'] || 0)
+            if (waitingJobs >= maxWaitingJobs) {
+                throw new Error(`Queue ${this.queue.name} has reached QUEUE_MAX_WAITING_JOBS (${maxWaitingJobs})`)
+            }
+        }
 
         const keepJobs = buildKeepJobs()
         const removeOnFail: number | boolean | KeepJobs | undefined = keepJobs || true

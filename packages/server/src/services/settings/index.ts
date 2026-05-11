@@ -2,6 +2,7 @@
 
 import { Platform } from '../../Interface'
 import { getRunningExpressApp } from '../../utils/getRunningExpressApp'
+import { isOpenSourceAuthEnabled } from '../../utils/openSourceAuthMode'
 
 const getSettings = async () => {
     try {
@@ -20,7 +21,7 @@ const getSettings = async () => {
                 return { PLATFORM_TYPE: Platform.CLOUD }
             }
             default: {
-                return { PLATFORM_TYPE: Platform.OPEN_SOURCE }
+                return { PLATFORM_TYPE: Platform.OPEN_SOURCE, OPEN_SOURCE_AUTH_ENABLED: isOpenSourceAuthEnabled() }
             }
         }
     } catch (error) {

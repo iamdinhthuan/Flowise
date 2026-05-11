@@ -1,5 +1,6 @@
 import { StatusCodes } from 'http-status-codes'
 import { IReactFlowObject } from '../../Interface'
+import { ChatFlow } from '../../database/entities/ChatFlow'
 import { InternalFlowiseError } from '../../errors/internalFlowiseError'
 import { getErrorMessage } from '../../errors/utils'
 import { verifyWebhookSignature, verifyPlainToken } from '../../utils/signatureVerification'
@@ -14,7 +15,7 @@ const validateWebhookChatflow = async (
     query?: Record<string, any>,
     rawBody?: Buffer,
     options?: { skipFieldValidation?: boolean }
-): Promise<{ responseMode: 'sync' | 'async' | 'stream'; callbackUrl?: string; callbackSecret?: string }> => {
+): Promise<{ responseMode: 'sync' | 'async' | 'stream'; callbackUrl?: string; callbackSecret?: string; chatflow: ChatFlow }> => {
     try {
         const chatflow = await chatflowsService.getChatflowById(chatflowId, workspaceId)
         if (!chatflow) {
@@ -71,7 +72,7 @@ const validateWebhookChatflow = async (
             }
         }
 
-        if (options?.skipFieldValidation) return { responseMode, callbackUrl, callbackSecret }
+        if (options?.skipFieldValidation) return { responseMode, callbackUrl, callbackSecret, chatflow }
 
         // Method validation
         const webhookMethod = startNode?.data?.inputs?.webhookMethod
@@ -151,7 +152,7 @@ const validateWebhookChatflow = async (
             }
         }
 
-        return { responseMode, callbackUrl, callbackSecret }
+        return { responseMode, callbackUrl, callbackSecret, chatflow }
     } catch (error) {
         if (error instanceof InternalFlowiseError) throw error
         throw new InternalFlowiseError(

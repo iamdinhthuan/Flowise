@@ -48,7 +48,32 @@ const getChatflowCacheTtlMs = (): number => {
     return Number.isFinite(ttl) && ttl >= 0 ? ttl : 5000
 }
 
+const getChatflowCacheMaxEntries = (): number => {
+    const maxEntries = parseInt(process.env.CHATFLOW_CACHE_MAX_ENTRIES || '1000')
+    return Number.isFinite(maxEntries) && maxEntries >= 0 ? maxEntries : 1000
+}
+
 const getChatflowCacheKey = (chatflowId: string, workspaceId?: string): string => `${workspaceId || '*'}:${chatflowId}`
+
+const pruneChatflowCache = () => {
+    const now = Date.now()
+    for (const [key, cached] of chatflowByIdCache) {
+        if (cached.expiresAt <= now) {
+            chatflowByIdCache.delete(key)
+        }
+    }
+
+    const maxEntries = getChatflowCacheMaxEntries()
+    if (maxEntries === 0) {
+        chatflowByIdCache.clear()
+        return
+    }
+    while (chatflowByIdCache.size > maxEntries) {
+        const oldestKey = chatflowByIdCache.keys().next().value
+        if (!oldestKey) break
+        chatflowByIdCache.delete(oldestKey)
+    }
+}
 
 const getCachedChatflowById = (chatflowId: string, workspaceId?: string): ChatFlow | undefined => {
     const ttl = getChatflowCacheTtlMs()
@@ -72,6 +97,7 @@ const setCachedChatflowById = (chatflow: ChatFlow, workspaceId?: string) => {
         expiresAt: Date.now() + ttl,
         value: { ...chatflow }
     })
+    pruneChatflowCache()
 }
 
 const invalidateChatflowCache = (chatflowId: string) => {

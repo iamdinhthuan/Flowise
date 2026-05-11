@@ -6,6 +6,16 @@ import { parse } from 'css-what'
 import { SelectorType } from 'cheerio'
 import { ICommonObject, INodeOutputsValue, IDocument, INode, INodeData, INodeParams } from '../../../src/Interface'
 import { handleEscapeCharacters, webCrawl, xmlScrape } from '../../../src/utils'
+import { checkDenyList } from '../../../src/httpSecurity'
+
+const validateScrapeUrl = async (url: string): Promise<string> => {
+    const normalizedUrl = url.trim()
+    if (!test(normalizedUrl)) {
+        throw new Error('Invalid URL')
+    }
+    await checkDenyList(normalizedUrl)
+    return normalizedUrl
+}
 
 class Cheerio_DocumentLoaders implements INode {
     label: string
@@ -133,10 +143,7 @@ class Cheerio_DocumentLoaders implements INode {
         }
 
         let url = nodeData.inputs?.url as string
-        url = url.trim()
-        if (!test(url)) {
-            throw new Error('Invalid URL')
-        }
+        url = await validateScrapeUrl(url)
 
         const selector: SelectorType = nodeData.inputs?.selector as SelectorType
 
@@ -148,13 +155,14 @@ class Cheerio_DocumentLoaders implements INode {
 
         async function cheerioLoader(url: string): Promise<any> {
             try {
+                const safeUrl = await validateScrapeUrl(url)
                 let docs: IDocument[] = []
-                if (url.endsWith('.pdf')) {
+                if (safeUrl.endsWith('.pdf')) {
                     if (process.env.DEBUG === 'true')
-                        options.logger.info(`[${orgId}]: CheerioWebBaseLoader does not support PDF files: ${url}`)
+                        options.logger.info(`[${orgId}]: CheerioWebBaseLoader does not support PDF files: ${safeUrl}`)
                     return docs
                 }
-                const loader = new CheerioWebBaseLoader(url, params)
+                const loader = new CheerioWebBaseLoader(safeUrl, params)
                 if (textSplitter) {
                     docs = await loader.load()
                     docs = await textSplitter.splitDocuments(docs)

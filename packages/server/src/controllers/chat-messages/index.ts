@@ -11,6 +11,21 @@ import { StatusCodes } from 'http-status-codes'
 import { utilGetChatMessage } from '../../utils/getChatMessage'
 import { getPageAndLimitParams } from '../../utils/pagination'
 
+const getPositiveEnvInt = (name: string, fallback: number): number => {
+    const value = process.env[name]
+    if (!value) return fallback
+    const parsed = parseInt(value)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+const getBoundedChatMessagePagination = (page: number, limit: number): { page: number; limit: number } => {
+    const defaultLimit = getPositiveEnvInt('CHAT_MESSAGE_DEFAULT_PAGE_SIZE', 100)
+    const maxLimit = getPositiveEnvInt('CHAT_MESSAGE_MAX_PAGE_SIZE', 500)
+    const normalizedLimit = limit > 0 ? Math.min(limit, maxLimit) : Math.min(defaultLimit, maxLimit)
+    const normalizedPage = page > 0 ? page : 1
+    return { page: normalizedPage, limit: normalizedLimit }
+}
+
 const getFeedbackTypeFilters = (_feedbackTypeFilters: ChatMessageRatingType[]): ChatMessageRatingType[] | undefined => {
     try {
         let feedbackTypeFilters
@@ -73,7 +88,8 @@ const getAllChatMessages = async (req: Request, res: Response, next: NextFunctio
         const endDate = req.query?.endDate as string | undefined
         const feedback = req.query?.feedback as boolean | undefined
 
-        const { page, limit } = getPageAndLimitParams(req)
+        const rawPagination = getPageAndLimitParams(req)
+        const { page, limit } = getBoundedChatMessagePagination(rawPagination.page, rawPagination.limit)
 
         let feedbackTypeFilters = req.query?.feedbackType as ChatMessageRatingType[] | undefined
         if (feedbackTypeFilters) {
@@ -118,6 +134,8 @@ const getAllInternalChatMessages = async (req: Request, res: Response, next: Nex
         const startDate = req.query?.startDate as string | undefined
         const endDate = req.query?.endDate as string | undefined
         const feedback = req.query?.feedback as boolean | undefined
+        const rawPagination = getPageAndLimitParams(req)
+        const { page, limit } = getBoundedChatMessagePagination(rawPagination.page, rawPagination.limit)
         let feedbackTypeFilters = req.query?.feedbackType as ChatMessageRatingType[] | undefined
         if (feedbackTypeFilters) {
             feedbackTypeFilters = getFeedbackTypeFilters(feedbackTypeFilters)
@@ -134,7 +152,9 @@ const getAllInternalChatMessages = async (req: Request, res: Response, next: Nex
             messageId,
             feedback,
             feedbackTypeFilters,
-            activeWorkspaceId
+            activeWorkspaceId,
+            page,
+            limit
         )
         return res.json(parseAPIResponse(apiResponse))
     } catch (error) {

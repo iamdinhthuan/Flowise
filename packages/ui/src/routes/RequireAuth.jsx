@@ -29,7 +29,7 @@ const checkFeatureFlag = (features, display, children) => {
 
 export const RequireAuth = ({ permission, display, children }) => {
     const location = useLocation()
-    const { isCloud, isOpenSource, isEnterpriseLicensed, loading } = useConfig()
+    const { isCloud, isOpenSource, isEnterpriseLicensed, loading, openSourceAuthEnabled } = useConfig()
     const { hasPermission } = useAuth()
     const isGlobal = useSelector((state) => state.auth.isGlobal)
     const currentUser = useSelector((state) => state.auth.user)
@@ -41,8 +41,11 @@ export const RequireAuth = ({ permission, display, children }) => {
         return null
     }
 
-    // Step 1: Open Source - skip auth entirely, just render children
+    // Step 1: Open Source legacy no-auth mode - skip auth entirely
     if (isOpenSource) {
+        if (openSourceAuthEnabled && !currentUser) {
+            return <Navigate to='/login' replace state={{ path: location.pathname }} />
+        }
         return !display ? children : <Navigate to='/unauthorized' replace />
     }
 

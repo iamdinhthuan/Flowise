@@ -1577,13 +1577,23 @@ export const getEncryptionKey = async (): Promise<string> => {
             throw error
         }
     }
+    const encryptionKeyPath = getEncryptionKeyPath()
     try {
-        return await fs.promises.readFile(getEncryptionKeyPath(), 'utf8')
-    } catch (error) {
+        if (!encryptionKeyPath) {
+            const missingKeyError = new Error('Encryption key file does not exist') as NodeJS.ErrnoException
+            missingKeyError.code = 'ENOENT'
+            throw missingKeyError
+        }
+        return await fs.promises.readFile(encryptionKeyPath, 'utf8')
+    } catch (error: any) {
+        if (error?.code !== 'ENOENT') {
+            throw error
+        }
         const encryptKey = generateEncryptKey()
         const defaultLocation = process.env.SECRETKEY_PATH
             ? path.join(process.env.SECRETKEY_PATH, 'encryption.key')
             : path.join(getUserHome(), '.flowise', 'encryption.key')
+        await fs.promises.mkdir(path.dirname(defaultLocation), { recursive: true })
         await fs.promises.writeFile(defaultLocation, encryptKey)
         return encryptKey
     }

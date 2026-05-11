@@ -9,7 +9,17 @@ import { TextSplitter } from '@langchain/textsplitters'
 import { test } from 'linkifyjs'
 import { omit } from 'lodash'
 import { handleEscapeCharacters, INodeOutputsValue, webCrawl, xmlScrape } from '../../../src'
+import { checkDenyList } from '../../../src/httpSecurity'
 import { ICommonObject, INode, INodeData, INodeParams } from '../../../src/Interface'
+
+const validateScrapeUrl = async (url: string): Promise<string> => {
+    const normalizedUrl = url.trim()
+    if (!test(normalizedUrl)) {
+        throw new Error('Invalid URL')
+    }
+    await checkDenyList(normalizedUrl)
+    return normalizedUrl
+}
 
 class Playwright_DocumentLoaders implements INode {
     label: string
@@ -182,13 +192,11 @@ class Playwright_DocumentLoaders implements INode {
         }
 
         let url = nodeData.inputs?.url as string
-        url = url.trim()
-        if (!test(url)) {
-            throw new Error('Invalid URL')
-        }
+        url = await validateScrapeUrl(url)
 
         async function playwrightLoader(url: string): Promise<Document[] | undefined> {
             try {
+                const safeUrl = await validateScrapeUrl(url)
                 let docs = []
 
                 const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH
@@ -223,7 +231,7 @@ class Playwright_DocumentLoaders implements INode {
                         }
                     }
                 }
-                const loader = new PlaywrightWebBaseLoader(url, config)
+                const loader = new PlaywrightWebBaseLoader(safeUrl, config)
                 if (textSplitter) {
                     docs = await loader.load()
                     docs = await textSplitter.splitDocuments(docs)
