@@ -98,6 +98,15 @@ const AgentFlowEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
                 onMouseEnter={() => setIsHovered(true)}
                 onMouseLeave={() => setIsHovered(false)}
             />
+            <path
+                className={`flowise-edge-travel ${selected ? 'flowise-edge-travel-selected' : ''}`}
+                style={{
+                    stroke: data?.targetColor || data?.sourceColor || '#2a8af6',
+                    strokeWidth: selected ? 4 : 3,
+                    opacity: selected ? 0.82 : 0.58
+                }}
+                d={edgePath}
+            />
             {data?.edgeLabel && (
                 <EdgeLabelRenderer>
                     <EdgeLabel

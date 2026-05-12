@@ -136,8 +136,22 @@
 }
 
 .flowise-motion-edge-selected {
-    stroke-dasharray: 12 10;
-    animation: flowiseEdgeTravel 950ms linear infinite;
+    filter: drop-shadow(0 0 4px rgba(15, 23, 42, 0.18));
+}
+
+.flowise-edge-travel {
+    fill: none;
+    pointer-events: none;
+    stroke-linecap: round;
+    stroke-dasharray: 1 18;
+    stroke-dashoffset: 0;
+    animation: flowiseEdgeTravel 760ms linear infinite;
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.85));
+}
+
+.flowise-edge-travel-selected {
+    stroke-dasharray: 1 14;
+    animation-duration: 620ms;
 }
 
 .agent-flow-edge-selector:hover + .flowise-motion-edge {
@@ -152,8 +166,6 @@
 }
 
 .react-flow__edge:hover .flowise-button-edge-path {
-    stroke-dasharray: 12 10;
-    animation: flowiseEdgeTravel 950ms linear infinite;
     filter: drop-shadow(0 0 5px rgba(15, 23, 42, 0.2));
 }
 
@@ -282,6 +294,7 @@
     .flowise-status-badge,
     .flowise-warning-badge,
     .flowise-motion-edge,
+    .flowise-edge-travel,
     .flowise-button-edge-path,
     .flowise-edgebutton {
         animation: none !important;
@@ -298,6 +311,7 @@
     }
 
     .flowise-motion-edge-selected,
+    .flowise-edge-travel,
     .react-flow__edge:hover .flowise-button-edge-path {
         stroke-dasharray: none !important;
     }
