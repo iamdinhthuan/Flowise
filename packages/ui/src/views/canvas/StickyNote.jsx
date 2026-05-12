@@ -52,8 +52,10 @@ const StickyNote = ({ data }) => {
     return (
         <>
             <NodeCardWrapper
+                className={`flowise-node-card flowise-sticky-node-card ${data.selected ? 'flowise-node-selected' : ''}`}
                 content={false}
                 sx={{
+                    '--flowise-node-accent': nodeColor,
                     padding: 0,
                     borderColor: getBorderColor(),
                     backgroundColor: getBackgroundColor()

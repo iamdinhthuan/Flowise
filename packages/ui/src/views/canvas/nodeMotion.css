@@ -1,0 +1,304 @@
+.flowise-motion-canvas {
+    --flowise-node-accent: #2a8af6;
+    --flowise-motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.flowise-node-shell,
+.flowise-node-card {
+    --flowise-node-accent: #2a8af6;
+}
+
+.flowise-node-shell {
+    position: relative;
+    isolation: isolate;
+    animation: flowiseNodeEnter 360ms var(--flowise-motion-ease) both;
+}
+
+.flowise-node-card {
+    position: relative;
+    transform: translate3d(0, 0, 0) scale(1);
+    transform-origin: center;
+    backface-visibility: hidden;
+    transition:
+        transform 220ms var(--flowise-motion-ease),
+        filter 220ms var(--flowise-motion-ease),
+        border-color 220ms var(--flowise-motion-ease),
+        background-color 220ms var(--flowise-motion-ease),
+        box-shadow 220ms var(--flowise-motion-ease);
+}
+
+.flowise-node-card::before,
+.flowise-node-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.flowise-node-card::before {
+    background: linear-gradient(120deg, transparent 18%, rgba(255, 255, 255, 0.34) 48%, transparent 76%);
+    opacity: 0;
+    transform: translate3d(-115%, 0, 0);
+}
+
+.flowise-node-card::after {
+    border: 1px solid var(--flowise-node-accent);
+    opacity: 0;
+    transform: scale(0.985);
+}
+
+.flowise-node-shell:hover .flowise-node-card,
+.flowise-node-card:hover {
+    transform: translate3d(0, -3px, 0) scale(1.012);
+    filter: drop-shadow(0 16px 22px rgba(15, 23, 42, 0.14));
+    will-change: transform;
+}
+
+.flowise-node-shell:hover .flowise-node-card::before,
+.flowise-node-card:hover::before {
+    opacity: 1;
+    animation: flowiseNodeSheen 850ms var(--flowise-motion-ease) both;
+}
+
+.flowise-node-shell.flowise-node-selected .flowise-node-card,
+.flowise-node-card.flowise-node-selected {
+    filter: drop-shadow(0 14px 20px rgba(15, 23, 42, 0.16));
+}
+
+.flowise-node-shell.flowise-node-selected .flowise-node-card::after,
+.flowise-node-card.flowise-node-selected::after {
+    opacity: 0.42;
+    animation: flowiseSelectedPulse 2.4s ease-in-out infinite;
+}
+
+.flowise-motion-canvas .react-flow__node.dragging .flowise-node-card {
+    transform: translate3d(0, -1px, 0) scale(1.018);
+    filter: drop-shadow(0 18px 26px rgba(15, 23, 42, 0.18));
+    transition: none;
+}
+
+.flowise-node-icon {
+    transform: translate3d(0, 0, 0);
+    transform-origin: center;
+    transition:
+        transform 220ms var(--flowise-motion-ease),
+        box-shadow 220ms var(--flowise-motion-ease);
+}
+
+.flowise-node-shell:hover .flowise-node-icon,
+.flowise-node-card:hover .flowise-node-icon {
+    transform: translate3d(0, -1px, 0) scale(1.06) rotate(-2deg);
+}
+
+.flowise-node-shell.flowise-node-selected:not(:hover) .flowise-node-icon,
+.flowise-node-card.flowise-node-selected:not(:hover) .flowise-node-icon {
+    animation: flowiseIconFloat 2.8s ease-in-out infinite;
+}
+
+.flowise-node-rail {
+    transition:
+        transform 180ms var(--flowise-motion-ease),
+        opacity 180ms var(--flowise-motion-ease),
+        box-shadow 180ms var(--flowise-motion-ease);
+}
+
+.flowise-node-shell:hover .flowise-node-rail {
+    transform: translate3d(1px, 0, 0) scaleY(1.08);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}
+
+.flowise-status-badge {
+    animation: flowiseStatusPop 280ms var(--flowise-motion-ease) both;
+}
+
+.flowise-status-inprogress {
+    animation: flowiseStatusPulse 1.35s ease-out infinite;
+}
+
+.flowise-status-error {
+    animation: flowiseStatusShake 460ms var(--flowise-motion-ease) both;
+}
+
+.flowise-status-finished {
+    animation: flowiseStatusPop 360ms var(--flowise-motion-ease) both;
+}
+
+.flowise-warning-badge {
+    animation: flowiseWarningNudge 2.2s ease-in-out infinite;
+}
+
+.flowise-motion-edge {
+    transition:
+        stroke-width 180ms var(--flowise-motion-ease),
+        opacity 180ms var(--flowise-motion-ease),
+        filter 180ms var(--flowise-motion-ease);
+}
+
+.flowise-motion-edge-selected {
+    stroke-dasharray: 12 10;
+    animation: flowiseEdgeTravel 950ms linear infinite;
+}
+
+.agent-flow-edge-selector:hover + .flowise-motion-edge {
+    filter: drop-shadow(0 0 5px rgba(15, 23, 42, 0.24));
+}
+
+.flowise-button-edge-path {
+    transition:
+        stroke-width 180ms var(--flowise-motion-ease),
+        opacity 180ms var(--flowise-motion-ease),
+        filter 180ms var(--flowise-motion-ease);
+}
+
+.react-flow__edge:hover .flowise-button-edge-path {
+    stroke-dasharray: 12 10;
+    animation: flowiseEdgeTravel 950ms linear infinite;
+    filter: drop-shadow(0 0 5px rgba(15, 23, 42, 0.2));
+}
+
+.flowise-edgebutton {
+    transform-origin: center;
+    transition:
+        transform 180ms var(--flowise-motion-ease),
+        box-shadow 180ms var(--flowise-motion-ease);
+}
+
+.flowise-edgebutton:hover,
+.flowise-edgebutton:focus-visible {
+    transform: scale(1.16);
+}
+
+@keyframes flowiseNodeEnter {
+    from {
+        opacity: 0;
+        transform: translate3d(0, 8px, 0) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+}
+
+@keyframes flowiseNodeSheen {
+    from {
+        transform: translate3d(-115%, 0, 0);
+    }
+    to {
+        transform: translate3d(115%, 0, 0);
+    }
+}
+
+@keyframes flowiseSelectedPulse {
+    0%,
+    100% {
+        opacity: 0.28;
+        transform: scale(0.985);
+    }
+    50% {
+        opacity: 0.58;
+        transform: scale(1.015);
+    }
+}
+
+@keyframes flowiseIconFloat {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+        transform: translate3d(0, -2px, 0) scale(1.03);
+    }
+}
+
+@keyframes flowiseStatusPop {
+    from {
+        opacity: 0;
+        transform: scale(0.78);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes flowiseStatusPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.32);
+    }
+    70% {
+        box-shadow: 0 0 0 9px rgba(245, 158, 11, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+    }
+}
+
+@keyframes flowiseStatusShake {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0);
+    }
+    25% {
+        transform: translate3d(-2px, 0, 0);
+    }
+    50% {
+        transform: translate3d(2px, 0, 0);
+    }
+    75% {
+        transform: translate3d(-1px, 0, 0);
+    }
+}
+
+@keyframes flowiseWarningNudge {
+    0%,
+    100% {
+        transform: translate3d(0, 0, 0) rotate(0deg);
+    }
+    12% {
+        transform: translate3d(0, -1px, 0) rotate(-5deg);
+    }
+    24% {
+        transform: translate3d(0, -1px, 0) rotate(5deg);
+    }
+    36% {
+        transform: translate3d(0, 0, 0) rotate(0deg);
+    }
+}
+
+@keyframes flowiseEdgeTravel {
+    to {
+        stroke-dashoffset: -22;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .flowise-node-shell,
+    .flowise-node-card,
+    .flowise-node-card::before,
+    .flowise-node-card::after,
+    .flowise-node-icon,
+    .flowise-node-rail,
+    .flowise-status-badge,
+    .flowise-warning-badge,
+    .flowise-motion-edge,
+    .flowise-button-edge-path,
+    .flowise-edgebutton {
+        animation: none !important;
+        transition: none !important;
+    }
+
+    .flowise-node-shell:hover .flowise-node-card,
+    .flowise-node-card:hover,
+    .flowise-motion-canvas .react-flow__node.dragging .flowise-node-card,
+    .flowise-node-shell:hover .flowise-node-icon,
+    .flowise-node-card:hover .flowise-node-icon {
+        transform: none !important;
+        filter: none !important;
+    }
+
+    .flowise-motion-edge-selected,
+    .react-flow__edge:hover .flowise-button-edge-path {
+        stroke-dasharray: none !important;
+    }
+}

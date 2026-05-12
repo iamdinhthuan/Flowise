@@ -206,7 +206,14 @@ const AgentFlowNode = ({ data }) => {
     }, [canvas.componentNodes, data.name, data.version])
 
     return (
-        <div ref={ref} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+        <div
+            ref={ref}
+            className={`flowise-node-shell ${data.selected ? 'flowise-node-selected' : ''} ${
+                data.status ? `flowise-node-status-${String(data.status).toLowerCase()}` : ''
+            }`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             <StyledNodeToolbar>
                 <ButtonGroup sx={{ gap: 1 }} variant='outlined' aria-label='Basic button group'>
                     {data.name !== 'startAgentflow' && (
@@ -260,8 +267,10 @@ const AgentFlowNode = ({ data }) => {
                 </ButtonGroup>
             </StyledNodeToolbar>
             <CardWrapper
+                className='flowise-node-card flowise-agent-node-card'
                 content={false}
                 sx={{
+                    '--flowise-node-accent': nodeColor,
                     borderColor: getStateColor(),
                     borderWidth: '1px',
                     boxShadow: data.selected ? `0 0 0 1px ${getStateColor()} !important` : 'none',
@@ -279,6 +288,7 @@ const AgentFlowNode = ({ data }) => {
                 {data && data.status && (
                     <Tooltip title={data.status === 'ERROR' ? data.error || 'Error' : ''}>
                         <Avatar
+                            className={`flowise-status-badge flowise-status-${String(data.status).toLowerCase()}`}
                             variant='rounded'
                             sx={{
                                 ...theme.typography.smallAvatar,
@@ -312,6 +322,7 @@ const AgentFlowNode = ({ data }) => {
                 {warningMessage && (
                     <Tooltip placement='right-start' title={<span style={{ whiteSpace: 'pre-line' }}>{warningMessage}</span>}>
                         <Avatar
+                            className='flowise-warning-badge'
                             variant='rounded'
                             sx={{
                                 ...theme.typography.smallAvatar,
@@ -360,6 +371,7 @@ const AgentFlowNode = ({ data }) => {
                         <Box item style={{ width: 50 }}>
                             {data.color && !data.icon ? (
                                 <div
+                                    className='flowise-node-icon'
                                     style={{
                                         ...theme.typography.commonAvatar,
                                         ...theme.typography.largeAvatar,
@@ -376,6 +388,7 @@ const AgentFlowNode = ({ data }) => {
                                 </div>
                             ) : (
                                 <div
+                                    className='flowise-node-icon'
                                     style={{
                                         ...theme.typography.commonAvatar,
                                         ...theme.typography.largeAvatar,
@@ -676,6 +689,7 @@ const AgentFlowNode = ({ data }) => {
                                 }}
                             >
                                 <div
+                                    className='flowise-node-rail'
                                     style={{
                                         position: 'absolute',
                                         width: 20,

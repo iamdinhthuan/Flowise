@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, useCallback, useContext } from 'r
 import ReactFlow, { addEdge, Controls, MiniMap, Background, useNodesState, useEdgesState } from 'reactflow'
 import 'reactflow/dist/style.css'
 import './index.css'
+import '@/views/canvas/nodeMotion.css'
 import { useReward } from 'react-rewards'
 
 import { useDispatch, useSelector } from 'react-redux'
@@ -737,6 +738,7 @@ const AgentflowCanvas = () => {
                                 snapGrid={[25, 25]}
                                 snapToGrid={isSnappingEnabled}
                                 connectionLineComponent={ConnectionLine}
+                                className='chatflow-canvas agentflow-canvas flowise-motion-canvas'
                             >
                                 <Controls
                                     className={customization.isDarkMode ? 'dark-mode-controls' : ''}

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef, useContext } from 'react'
 import ReactFlow, { Controls, Background, useNodesState, useEdgesState } from 'reactflow'
 import 'reactflow/dist/style.css'
 import '@/views/canvas/index.css'
+import '@/views/canvas/nodeMotion.css'
 
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useSelector } from 'react-redux'
@@ -117,6 +118,7 @@ const MarketplaceCanvasV2 = () => {
                                 minZoom={0.1}
                                 snapGrid={[25, 25]}
                                 snapToGrid={isSnappingEnabled}
+                                className='chatflow-canvas agentflow-canvas flowise-motion-canvas'
                             >
                                 <Controls
                                     className={customization.isDarkMode ? 'dark-mode-controls' : ''}

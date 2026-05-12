@@ -84,7 +84,7 @@ const AgentFlowEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
             />
             <path
                 id={id}
-                className='agent-flow-edge'
+                className={`agent-flow-edge flowise-motion-edge ${selected ? 'flowise-motion-edge-selected' : ''}`}
                 style={{
                     strokeWidth: selected ? 3 : 2,
                     stroke: `url(#${gradientId})`,
@@ -130,7 +130,7 @@ const AgentFlowEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition,
                         }}
                     >
                         <button
-                            className='edgebutton'
+                            className='edgebutton flowise-edgebutton'
                             onClick={(event) => onEdgeClick(event, id)}
                             style={{
                                 width: '12px',

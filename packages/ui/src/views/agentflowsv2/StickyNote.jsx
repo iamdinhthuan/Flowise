@@ -60,7 +60,12 @@ const StickyNote = ({ data }) => {
     }
 
     return (
-        <div ref={ref} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+        <div
+            ref={ref}
+            className={`flowise-node-shell ${data.selected ? 'flowise-node-selected' : ''}`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             <StyledNodeToolbar>
                 <ButtonGroup sx={{ gap: 1 }} variant='outlined' aria-label='Basic button group'>
                     <IconButton
@@ -96,8 +101,10 @@ const StickyNote = ({ data }) => {
                 </ButtonGroup>
             </StyledNodeToolbar>
             <CardWrapper
+                className='flowise-node-card flowise-sticky-node-card'
                 content={false}
                 sx={{
+                    '--flowise-node-accent': nodeColor,
                     borderColor: getStateColor(),
                     borderWidth: '1px',
                     boxShadow: data.selected ? `0 0 0 1px ${getStateColor()} !important` : 'none',

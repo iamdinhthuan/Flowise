@@ -166,11 +166,19 @@ const IterationNode = ({ data }) => {
     )
 
     return (
-        <div ref={ref} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
+        <div
+            ref={ref}
+            className={`flowise-node-shell ${data.selected ? 'flowise-node-selected' : ''} ${
+                data.status ? `flowise-node-status-${String(data.status).toLowerCase()}` : ''
+            }`}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
             <NodeToolbar align='start' isVisible={true}>
                 <Box style={{ display: 'flex', alignItems: 'center', flexDirection: 'row' }}>
                     {data.color && !data.icon ? (
                         <div
+                            className='flowise-node-icon'
                             style={{
                                 ...theme.typography.commonAvatar,
                                 ...theme.typography.largeAvatar,
@@ -187,6 +195,7 @@ const IterationNode = ({ data }) => {
                         </div>
                     ) : (
                         <div
+                            className='flowise-node-icon'
                             style={{
                                 ...theme.typography.commonAvatar,
                                 ...theme.typography.largeAvatar,
@@ -265,8 +274,10 @@ const IterationNode = ({ data }) => {
             </StyledNodeToolbar>
             <NodeResizer minWidth={300} minHeight={Math.max(getMinimumHeight(), 250)} onResizeEnd={onResizeEnd} />
             <CardWrapper
+                className='flowise-node-card flowise-agent-node-card flowise-iteration-node-card'
                 content={false}
                 sx={{
+                    '--flowise-node-accent': nodeColor,
                     borderColor: getStateColor(),
                     borderWidth: '1px',
                     boxShadow: data.selected ? `0 0 0 1px ${getStateColor()} !important` : 'none',
@@ -285,6 +296,7 @@ const IterationNode = ({ data }) => {
                 {data && data.status && (
                     <Tooltip title={data.status === 'ERROR' ? data.error || 'Error' : ''}>
                         <Avatar
+                            className={`flowise-status-badge flowise-status-${String(data.status).toLowerCase()}`}
                             variant='rounded'
                             sx={{
                                 ...theme.typography.smallAvatar,
@@ -390,6 +402,7 @@ const IterationNode = ({ data }) => {
                                 }}
                             >
                                 <div
+                                    className='flowise-node-rail'
                                     style={{
                                         position: 'absolute',
                                         width: 20,

@@ -32,7 +32,7 @@ const ButtonEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
 
     return (
         <>
-            <path id={id} style={style} className='react-flow__edge-path' d={edgePath} markerEnd={markerEnd} />
+            <path id={id} style={style} className='react-flow__edge-path flowise-button-edge-path' d={edgePath} markerEnd={markerEnd} />
             {data && data.label && (
                 <EdgeText
                     x={sourceX + 10}
@@ -53,7 +53,7 @@ const ButtonEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
                 requiredExtensions='http://www.w3.org/1999/xhtml'
             >
                 <div>
-                    <button className='edgebutton' onClick={(event) => onEdgeClick(event, id)}>
+                    <button className='edgebutton flowise-edgebutton' onClick={(event) => onEdgeClick(event, id)}>
                         <IconX stroke={2} size='12' />
                     </button>
                 </div>

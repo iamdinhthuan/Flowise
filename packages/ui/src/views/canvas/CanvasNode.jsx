@@ -93,8 +93,10 @@ const CanvasNode = ({ data }) => {
     return (
         <>
             <NodeCardWrapper
+                className={`flowise-node-card flowise-standard-node-card ${data.selected ? 'flowise-node-selected' : ''}`}
                 content={false}
                 sx={{
+                    '--flowise-node-accent': theme.palette.primary.main,
                     padding: 0,
                     borderColor: getBorderColor()
                 }}
@@ -152,6 +154,7 @@ const CanvasNode = ({ data }) => {
                         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center' }}>
                             <Box style={{ width: 50, marginRight: 10, padding: 10 }}>
                                 <div
+                                    className='flowise-node-icon'
                                     style={{
                                         ...theme.typography.commonAvatar,
                                         ...theme.typography.largeAvatar,

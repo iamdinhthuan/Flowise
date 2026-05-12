@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, useContext } from 'react'
 import ReactFlow, { addEdge, Controls, Background, useNodesState, useEdgesState } from 'reactflow'
 import 'reactflow/dist/style.css'
+import './nodeMotion.css'
 
 import { useDispatch, useSelector } from 'react-redux'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -601,7 +602,7 @@ const Canvas = () => {
                                 minZoom={0.1}
                                 snapGrid={[25, 25]}
                                 snapToGrid={isSnappingEnabled}
-                                className='chatflow-canvas'
+                                className='chatflow-canvas flowise-motion-canvas'
                             >
                                 <Controls
                                     className={customization.isDarkMode ? 'dark-mode-controls' : ''}
