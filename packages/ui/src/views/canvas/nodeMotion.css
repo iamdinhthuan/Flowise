@@ -143,15 +143,22 @@
     fill: none;
     pointer-events: none;
     stroke-linecap: round;
-    stroke-dasharray: 1 18;
-    stroke-dashoffset: 0;
-    animation: flowiseEdgeTravel 760ms linear infinite;
-    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.85));
+    stroke-dasharray: 0.12 0.88;
+    stroke-dashoffset: 1;
+    animation: flowiseEdgeTravel 1.65s linear infinite;
+}
+
+.flowise-edge-travel-glow {
+    filter: blur(2px);
+}
+
+.flowise-edge-travel-core {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.9));
 }
 
 .flowise-edge-travel-selected {
-    stroke-dasharray: 1 14;
-    animation-duration: 620ms;
+    stroke-dasharray: 0.14 0.86;
+    animation-duration: 1.25s;
 }
 
 .agent-flow-edge-selector:hover + .flowise-motion-edge {
@@ -279,8 +286,11 @@
 }
 
 @keyframes flowiseEdgeTravel {
+    from {
+        stroke-dashoffset: 1;
+    }
     to {
-        stroke-dashoffset: -22;
+        stroke-dashoffset: 0;
     }
 }
 

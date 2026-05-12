@@ -34,12 +34,26 @@ const ButtonEdge = ({ id, sourceX, sourceY, targetX, targetY, sourcePosition, ta
         <>
             <path id={id} style={style} className='react-flow__edge-path flowise-button-edge-path' d={edgePath} markerEnd={markerEnd} />
             <path
-                className='flowise-edge-travel flowise-button-edge-travel'
+                className='flowise-edge-travel flowise-edge-travel-glow flowise-button-edge-travel'
                 style={{
                     stroke: style.stroke || '#2a8af6',
-                    strokeWidth: Number(style.strokeWidth) > 2 ? Number(style.strokeWidth) + 1 : 3
+                    strokeWidth: Number(style.strokeWidth) > 2 ? Number(style.strokeWidth) + 5 : 7,
+                    opacity: 0.28
                 }}
                 d={edgePath}
+                pathLength={1}
+                vectorEffect='non-scaling-stroke'
+            />
+            <path
+                className='flowise-edge-travel flowise-edge-travel-core flowise-button-edge-travel'
+                style={{
+                    stroke: style.stroke || '#2a8af6',
+                    strokeWidth: Number(style.strokeWidth) > 2 ? Number(style.strokeWidth) + 1 : 3,
+                    opacity: 0.72
+                }}
+                d={edgePath}
+                pathLength={1}
+                vectorEffect='non-scaling-stroke'
             />
             {data && data.label && (
                 <EdgeText
