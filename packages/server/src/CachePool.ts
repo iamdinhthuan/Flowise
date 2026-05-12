@@ -4,6 +4,8 @@ import Redis from 'ioredis'
 const CACHE_POOL_MAX_ENTRIES = parseInt(process.env.CACHE_POOL_MAX_ENTRIES || '500')
 const CACHE_POOL_TTL_SECONDS = parseInt(process.env.CACHE_POOL_TTL_SECONDS || '86400')
 
+const isRedisCacheEnabled = () => process.env.MODE === MODE.QUEUE || process.env.CACHE_POOL_REDIS_ENABLED === 'true'
+
 const pruneCacheObject = (cache: Record<string, any>) => {
     if (!Number.isFinite(CACHE_POOL_MAX_ENTRIES) || CACHE_POOL_MAX_ENTRIES <= 0) return
 
@@ -23,8 +25,39 @@ const setRedisValue = async (client: Redis, key: string, value: string) => {
     }
 }
 
+const createRedisClient = () => {
+    if (process.env.REDIS_URL) {
+        return new Redis(process.env.REDIS_URL, {
+            keepAlive:
+                process.env.REDIS_KEEP_ALIVE && !isNaN(parseInt(process.env.REDIS_KEEP_ALIVE, 10))
+                    ? parseInt(process.env.REDIS_KEEP_ALIVE, 10)
+                    : undefined
+        })
+    }
+
+    return new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379'),
+        username: process.env.REDIS_USERNAME || undefined,
+        password: process.env.REDIS_PASSWORD || undefined,
+        tls:
+            process.env.REDIS_TLS === 'true'
+                ? {
+                      cert: process.env.REDIS_CERT ? Buffer.from(process.env.REDIS_CERT, 'base64') : undefined,
+                      key: process.env.REDIS_KEY ? Buffer.from(process.env.REDIS_KEY, 'base64') : undefined,
+                      ca: process.env.REDIS_CA ? Buffer.from(process.env.REDIS_CA, 'base64') : undefined
+                  }
+                : undefined,
+        keepAlive:
+            process.env.REDIS_KEEP_ALIVE && !isNaN(parseInt(process.env.REDIS_KEEP_ALIVE, 10))
+                ? parseInt(process.env.REDIS_KEEP_ALIVE, 10)
+                : undefined
+    })
+}
+
 /**
- * This pool is to keep track of in-memory cache used for LLM and Embeddings
+ * Tracks runtime caches used for LLM, embeddings, MCP tools, and SSO handoff.
+ * Serializable entries can be Redis-backed for production Docker or queue mode.
  */
 export class CachePool {
     private redisClient: Redis | null = null
@@ -34,34 +67,8 @@ export class CachePool {
     ssoTokenCache: { [key: string]: any } = {}
 
     constructor() {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (process.env.REDIS_URL) {
-                this.redisClient = new Redis(process.env.REDIS_URL, {
-                    keepAlive:
-                        process.env.REDIS_KEEP_ALIVE && !isNaN(parseInt(process.env.REDIS_KEEP_ALIVE, 10))
-                            ? parseInt(process.env.REDIS_KEEP_ALIVE, 10)
-                            : undefined
-                })
-            } else {
-                this.redisClient = new Redis({
-                    host: process.env.REDIS_HOST || 'localhost',
-                    port: parseInt(process.env.REDIS_PORT || '6379'),
-                    username: process.env.REDIS_USERNAME || undefined,
-                    password: process.env.REDIS_PASSWORD || undefined,
-                    tls:
-                        process.env.REDIS_TLS === 'true'
-                            ? {
-                                  cert: process.env.REDIS_CERT ? Buffer.from(process.env.REDIS_CERT, 'base64') : undefined,
-                                  key: process.env.REDIS_KEY ? Buffer.from(process.env.REDIS_KEY, 'base64') : undefined,
-                                  ca: process.env.REDIS_CA ? Buffer.from(process.env.REDIS_CA, 'base64') : undefined
-                              }
-                            : undefined,
-                    keepAlive:
-                        process.env.REDIS_KEEP_ALIVE && !isNaN(parseInt(process.env.REDIS_KEEP_ALIVE, 10))
-                            ? parseInt(process.env.REDIS_KEEP_ALIVE, 10)
-                            : undefined
-                })
-            }
+        if (isRedisCacheEnabled()) {
+            this.redisClient = createRedisClient()
         }
     }
 
@@ -71,23 +78,19 @@ export class CachePool {
      * @param {any} value
      */
     async addSSOTokenCache(ssoToken: string, value: any) {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                const serializedValue = JSON.stringify(value)
-                await this.redisClient.set(`ssoTokenCache:${ssoToken}`, serializedValue, 'EX', 120)
-            }
+        if (this.redisClient) {
+            const serializedValue = JSON.stringify(value)
+            await this.redisClient.set(`ssoTokenCache:${ssoToken}`, serializedValue, 'EX', 120)
         } else {
             this.ssoTokenCache[ssoToken] = value
         }
     }
 
     async getSSOTokenCache(ssoToken: string): Promise<any | undefined> {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                const serializedValue = await this.redisClient.get(`ssoTokenCache:${ssoToken}`)
-                if (serializedValue) {
-                    return JSON.parse(serializedValue)
-                }
+        if (this.redisClient) {
+            const serializedValue = await this.redisClient.get(`ssoTokenCache:${ssoToken}`)
+            if (serializedValue) {
+                return JSON.parse(serializedValue)
             }
         } else {
             return this.ssoTokenCache[ssoToken]
@@ -96,10 +99,8 @@ export class CachePool {
     }
 
     async deleteSSOTokenCache(ssoToken: string) {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                await this.redisClient.del(`ssoTokenCache:${ssoToken}`)
-            }
+        if (this.redisClient) {
+            await this.redisClient.del(`ssoTokenCache:${ssoToken}`)
         } else {
             delete this.ssoTokenCache[ssoToken]
         }
@@ -111,11 +112,9 @@ export class CachePool {
      * @param {Map<any, any>} value
      */
     async addLLMCache(chatflowid: string, value: Map<any, any>) {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                const serializedValue = JSON.stringify(Array.from(value.entries()))
-                await setRedisValue(this.redisClient, `llmCache:${chatflowid}`, serializedValue)
-            }
+        if (this.redisClient) {
+            const serializedValue = JSON.stringify(Array.from(value.entries()))
+            await setRedisValue(this.redisClient, `llmCache:${chatflowid}`, serializedValue)
         } else {
             this.activeLLMCache[chatflowid] = value
             pruneCacheObject(this.activeLLMCache)
@@ -128,11 +127,9 @@ export class CachePool {
      * @param {Map<any, any>} value
      */
     async addEmbeddingCache(chatflowid: string, value: Map<any, any>) {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                const serializedValue = JSON.stringify(Array.from(value.entries()))
-                await setRedisValue(this.redisClient, `embeddingCache:${chatflowid}`, serializedValue)
-            }
+        if (this.redisClient) {
+            const serializedValue = JSON.stringify(Array.from(value.entries()))
+            await setRedisValue(this.redisClient, `embeddingCache:${chatflowid}`, serializedValue)
         } else {
             this.activeEmbeddingCache[chatflowid] = value
             pruneCacheObject(this.activeEmbeddingCache)
@@ -168,12 +165,10 @@ export class CachePool {
      * @param {string} chatflowid
      */
     async getLLMCache(chatflowid: string): Promise<Map<any, any> | undefined> {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                const serializedValue = await this.redisClient.get(`llmCache:${chatflowid}`)
-                if (serializedValue) {
-                    return new Map(JSON.parse(serializedValue))
-                }
+        if (this.redisClient) {
+            const serializedValue = await this.redisClient.get(`llmCache:${chatflowid}`)
+            if (serializedValue) {
+                return new Map(JSON.parse(serializedValue))
             }
         } else {
             return this.activeLLMCache[chatflowid]
@@ -186,12 +181,10 @@ export class CachePool {
      * @param {string} chatflowid
      */
     async getEmbeddingCache(chatflowid: string): Promise<Map<any, any> | undefined> {
-        if (process.env.MODE === MODE.QUEUE) {
-            if (this.redisClient) {
-                const serializedValue = await this.redisClient.get(`embeddingCache:${chatflowid}`)
-                if (serializedValue) {
-                    return new Map(JSON.parse(serializedValue))
-                }
+        if (this.redisClient) {
+            const serializedValue = await this.redisClient.get(`embeddingCache:${chatflowid}`)
+            if (serializedValue) {
+                return new Map(JSON.parse(serializedValue))
             }
         } else {
             return this.activeEmbeddingCache[chatflowid]

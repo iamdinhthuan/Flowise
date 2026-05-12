@@ -21,6 +21,28 @@ services:
         limits:
           memory: 512M
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "1"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
   flowise:
     build: .
     image: flowise-lite
@@ -28,9 +50,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - LITE_MODE=true
+      - MODE=${MODE:-main}
       - DATABASE_TYPE=postgres
       - DATABASE_HOST=postgres
       - DATABASE_PORT=5432
@@ -54,6 +79,9 @@ services:
       - QUEUE_MAX_WAITING_JOBS=${QUEUE_MAX_WAITING_JOBS:-1000}
       - REMOVE_ON_AGE=${REMOVE_ON_AGE:-86400}
       - REMOVE_ON_COUNT=${REMOVE_ON_COUNT:-1000}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_KEEP_ALIVE=${REDIS_KEEP_ALIVE:-30000}
+      - CACHE_POOL_REDIS_ENABLED=${CACHE_POOL_REDIS_ENABLED:-true}
       - CACHE_POOL_MAX_ENTRIES=${CACHE_POOL_MAX_ENTRIES:-500}
       - CACHE_POOL_TTL_SECONDS=${CACHE_POOL_TTL_SECONDS:-86400}
       - FLOWISE_MAX_INDEXING_DOCUMENTS=${FLOWISE_MAX_INDEXING_DOCUMENTS:-10000}
@@ -78,4 +106,5 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   flowise_data:
